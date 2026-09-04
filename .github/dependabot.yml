@@ -7,9 +7,9 @@ updates:
       interval: "weekly"
       day: "sunday"
     labels:
-      - "module:infrastructure"
-      - "scope:security"
-      - "pr:no-release-notes"
+      - "auto update"
+      - "infrastructure"
+      - "no RN"
     open-pull-requests-limit: 3
     commit-message:
       prefix: "chore"

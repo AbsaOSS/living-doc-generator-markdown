@@ -21,18 +21,18 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v7
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           fetch-depth: 0
           persist-credentials: false
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.14'
 
       - name: Check format of received target tag
         id: check-version-tag
-        uses: AbsaOSS/version-tag-check@4145e48bf3f77a5afff2ec9afdd8afb6b53bce34
+        uses: AbsaOSS/version-tag-check@4145e48bf3f77a5afff2ec9afdd8afb6b53bce34 # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -42,7 +42,7 @@ jobs:
       - name: Check format of received from tag
         if: ${{ github.event.inputs.from-tag-name }}
         id: check-version-from-tag
-        uses: AbsaOSS/version-tag-check@4145e48bf3f77a5afff2ec9afdd8afb6b53bce34
+        uses: AbsaOSS/version-tag-check@4145e48bf3f77a5afff2ec9afdd8afb6b53bce34 # v1.0.0
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -51,7 +51,7 @@ jobs:
           should-exist: true
 
       - name: Create and push tag
-        uses: actions/github-script@v9
+        uses: actions/github-script@3a2844b7e9c422d3c10d287c895573f7108da1b3 # v9.0.0
         env:
           TAG_NAME: ${{ github.event.inputs.tag-name }}
         with:
@@ -72,7 +72,7 @@ jobs:
 
       - name: Generate Release Notes
         id: generate_release_notes
-        uses: AbsaOSS/generate-release-notes@26eca65fc504c088a7afd8b08545a738ad8b446b # v1.3.2
+        uses: AbsaOSS/generate-release-notes@4592187ca123598c8f0bd6de06311c9f5cd8b773 # v1.3.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
@@ -96,7 +96,7 @@ jobs:
           row-format-pr: '{number} _{title}_ by {developers}'
 
       - name: Create draft release
-        uses: softprops/action-gh-release@718ea10b132b3b2eba29c1007bb80653f286566b # v3.0.1
+        uses: softprops/action-gh-release@e598afbe1493e6b1bafb1f389cabb956eab91231 # v3.0.3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
         with:
