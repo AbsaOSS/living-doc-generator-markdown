@@ -38,10 +38,11 @@ runs:
       id: venv
       shell: bash
       run: |
-        # The install must land in the venv and nowhere else. These redirect pip's target directory or
-        # prepend to `sys.path`, so a caller that exports them would otherwise leave the venv empty or
-        # shadow its packages. Unset (not set empty: pip reads its own vars as config values).
-        unset PIP_TARGET PIP_PREFIX PIP_USER PYTHONPATH
+        # The install must land in the venv and nowhere else. These redirect pip's target directory or its
+        # interpreter (`PIP_PYTHON` re-runs pip under another Python and installs into that one), or prepend
+        # to `sys.path`, so a caller that exports them would otherwise fill their own interpreter, leave the
+        # venv empty or shadow its packages. Unset (not set empty: pip reads its own vars as config values).
+        unset PIP_TARGET PIP_PREFIX PIP_USER PIP_ROOT PIP_PYTHON PYTHONPATH
         PY="$(command -v python3 || command -v python || true)"
         if [ -z "$PY" ] || ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then
           echo "::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step."; exit 1
@@ -66,9 +67,10 @@ runs:
         # `unset` above cannot reach: a runner that sets `target` or `prefix` there redirects the packages
         # out of the venv, and `pip` still exits 0. The generator would then fail in the next step, on an
         # import, as if the package were at fault. One import through the venv's own interpreter - which
-        # sees nothing but the venv and, from the action's directory, the generator's own package,
-        # `PYTHONPATH` being unset - reports it here instead, where it happened.
-        (cd "${{ github.action_path }}" && "$VENV/bin/python" -c 'import living_doc_utilities, generator_markdown') || {
+        # sees nothing but the venv and, from the action's directory, the generator's own package, `-E`
+        # ignoring the caller's `PYTHON*` set as the run step does (`PYTHONSAFEPATH` would drop that
+        # directory) - reports it here instead, where it happened.
+        (cd "${{ github.action_path }}" && "$VENV/bin/python" -E -c 'import living_doc_utilities, generator_markdown') || {
           echo "::error::living-doc-generator-markdown's requirements did not land in $VENV; check the runner's pip configuration for a 'target' or 'prefix' setting that redirects them."; exit 1; }
         echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
 

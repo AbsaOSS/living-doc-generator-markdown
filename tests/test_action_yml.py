@@ -36,6 +36,11 @@ ACTION_YML = REPO_ROOT / "action.yml"
 PYTHON_FLOOR_ERROR = (
     "::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step."
 )
+VENV_CREATE_ERROR = "::error::living-doc-generator-markdown: '$PY -m venv' failed; install the venv module."
+REQUIREMENTS_NOT_LANDED_ERROR = (
+    "::error::living-doc-generator-markdown's requirements did not land in $VENV; check the runner's pip "
+    "configuration for a 'target' or 'prefix' setting that redirects them."
+)
 VENV_LINE = 'VENV="$RUNNER_TEMP/living-doc-generator-markdown-venv"'
 INSTALL_LINE = '"$VENV/bin/pip" install -r "${{ github.action_path }}/requirements.txt"'
 INPUTS = ["document-type", "source-path", "output-path", "document-title"]
@@ -54,8 +59,14 @@ def _step(step_id: str) -> dict:
 
 
 def test_an_unsupported_python_fails_with_the_documented_one_line_error():
-    # Assert: the exact string DEVELOPER.md's venv rule promises.
-    assert PYTHON_FLOOR_ERROR in ACTION_YML.read_text(encoding="utf-8")
+    # Assert: the exact string DEVELOPER.md's venv rule promises, echoed by the code itself (not a comment) right
+    # before the step fails.
+    assert f'echo "{PYTHON_FLOOR_ERROR}"; exit 1' in _code_lines()
+
+
+def test_a_failed_venv_create_fails_with_one_line_error():
+    # Assert: a runner without the `venv` module gets the pointer, not a bare `venv` traceback.
+    assert f'"$PY" -m venv "$VENV" || {{ echo "{VENV_CREATE_ERROR}"; exit 1; }}' in _code_lines()
 
 
 def test_the_version_floor_matches_the_one_the_project_requires():
@@ -79,9 +90,10 @@ def test_the_action_installs_into_its_own_venv_and_never_the_runners_interpreter
 
 
 def test_the_pip_environment_is_cleared_before_the_install():
-    # Assert: unset, not set empty, and before pip runs - a caller's PIP_TARGET would otherwise empty the venv.
+    # Assert: unset, not set empty, and before pip runs - a caller's PIP_TARGET would otherwise empty the venv, and
+    # a caller's PIP_PYTHON would install into the caller's own interpreter.
     lines = _code_lines()
-    unset = "unset PIP_TARGET PIP_PREFIX PIP_USER PYTHONPATH"
+    unset = "unset PIP_TARGET PIP_PREFIX PIP_USER PIP_ROOT PIP_PYTHON PYTHONPATH"
     assert unset in lines
     assert lines.index(unset) < lines.index(INSTALL_LINE)
 
@@ -98,14 +110,18 @@ def test_the_action_proves_the_requirements_and_its_package_import_in_the_venv()
     # Assert: the install is followed by an import through the venv's own interpreter, from the action's
     # directory. A runner `pip.conf` that redirects the packages (`target`/`prefix`, which no `unset` can
     # reach) leaves `pip install` green and the venv empty, so without this the first symptom is an import
-    # error one step later.
+    # error one step later. `-E`, as in the run step: a caller's `PYTHONSAFEPATH` would otherwise drop the action's
+    # directory from `sys.path` and fail the check on a good install.
     lines = _code_lines()
     checks = [
-        line for line in lines if "\"$VENV/bin/python\" -c 'import living_doc_utilities, generator_markdown'" in line
+        line for line in lines if "\"$VENV/bin/python\" -E -c 'import living_doc_utilities, generator_markdown'" in line
     ]
     assert len(checks) == 1
     assert checks[0].startswith('(cd "${{ github.action_path }}" && ')
     assert lines.index(INSTALL_LINE) < lines.index(checks[0])
+    # Its failure is the one line pointing at the runner's pip configuration, not the import's traceback.
+    assert checks[0].endswith(" || {")
+    assert lines[lines.index(checks[0]) + 1] == f'echo "{REQUIREMENTS_NOT_LANDED_ERROR}"; exit 1; }}'
 
 
 def test_the_entry_point_runs_through_the_venv_with_the_environment_ignored():
@@ -113,6 +129,13 @@ def test_the_entry_point_runs_through_the_venv_with_the_environment_ignored():
     assert _step("liv-doc-generator")["run"].strip().splitlines()[-1] == (
         '"${{ steps.venv.outputs.python }}" -E "${{ github.action_path }}/main.py"'
     )
+
+
+def test_the_run_step_gets_its_interpreter_from_the_venv_step():
+    # Assert: the venv step hands the run step the venv's interpreter. The integration jobs replay `main.py` on
+    # the venv directly, so they would stay green if the run step got the caller's `$PY` or an empty output.
+    assert [step.get("id") for step in _action()["runs"]["steps"]] == ["venv", "liv-doc-generator"]
+    assert 'echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"' in _code_lines()
 
 
 def test_the_inputs_are_the_four_the_pdf_generator_names():

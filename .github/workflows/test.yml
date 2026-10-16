@@ -51,6 +51,12 @@ jobs:
         run: |
           set -euo pipefail
 
+          # A manual run is a request to re-check the branch, so it runs every gate whatever its last commit touched.
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "python_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           # A rename lists its old path too, so moving a file out of the filtered set still runs the tests.
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             changed_files=$(gh api \

@@ -72,8 +72,9 @@ python3 main.py
   `::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step.`
 - It installs `requirements.txt` into `$RUNNER_TEMP/living-doc-generator-markdown-venv`. It never changes the
   caller's interpreter, `PATH` or environment, and writes nothing to `$GITHUB_ENV` or `$GITHUB_PATH`.
-- `PIP_TARGET`, `PIP_PREFIX`, `PIP_USER` and `PYTHONPATH` are unset before the install.
-  - Why: pip reads them as configuration, so a caller exporting one would empty or shadow the venv.
+- `PIP_TARGET`, `PIP_PREFIX`, `PIP_USER`, `PIP_ROOT`, `PIP_PYTHON` and `PYTHONPATH` are unset before the install.
+  - Why: pip reads them as configuration, so a caller exporting one would empty or shadow the venv, or (`PIP_PYTHON`)
+    install into the caller's own interpreter.
 - The venv is reused only when the interpreter now on `PATH` built it, compared as `sys.base_prefix` plus version;
   otherwise it is rebuilt.
 - After the install, one import of `living_doc_utilities` and `generator_markdown` through the venv's interpreter

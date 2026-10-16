@@ -20,6 +20,7 @@ names, or, for valid inputs, the message that rendering is not implemented yet.
 
 import logging
 import os
+import re
 import subprocess
 import sys
 from pathlib import Path
@@ -29,9 +30,13 @@ import pytest
 from main import RENDERING_NOT_IMPLEMENTED_MESSAGE, run
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
+# `setup_logging`'s format; a line that does not match it - a traceback, a wrapped message - breaks the one line.
+LOG_LINE = re.compile(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d - [A-Z]+ - ")
 
 
 def _errors(caplog) -> list[str]:
+    # A record carrying `exc_info` would print a traceback under its line.
+    assert all(record.exc_info is None for record in caplog.records)
     return [record.getMessage() for record in caplog.records if record.levelno >= logging.ERROR]
 
 
@@ -113,6 +118,8 @@ def test_the_entry_point_run_as_the_action_runs_it_prints_one_error_line(tmp_pat
 
     # Assert
     assert result.returncode == 1
+    assert all(LOG_LINE.match(line) for line in result.stdout.splitlines()), result.stdout
+    assert "Traceback" not in result.stderr, result.stderr
     error_lines = [line for line in result.stdout.splitlines() if " - ERROR - " in line]
     assert len(error_lines) == 1, result.stdout
     assert expected_error in error_lines[0]
