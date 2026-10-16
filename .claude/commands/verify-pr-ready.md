@@ -43,7 +43,7 @@ the ledger's `## Rounds` section says comes next — do not restart.
   (or `$2`, or GitHub issue `#$1` via `gh issue view`).
 - `manifest.md` — the base tree, the snapshot tree, and every changed file grouped into
   review **areas**. Group by purpose (production code, tests, fixtures/golden data,
-  docs + `SPEC.md` lifecycle, `action.yml` + CI/config/agent files). Prefer ≤ ~1500 changed lines
+  docs, `action.yml` + CI/config/agent files). Prefer ≤ ~1500 changed lines
   per area; split a larger group.
 - `ledger.md` — one table, one row per finding:
   `id | area | file:line | severity | failure scenario | status | resolution`.

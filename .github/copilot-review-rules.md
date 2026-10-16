@@ -73,6 +73,5 @@ repo's own risk areas and review expectations; it is not shared with other repos
 - Must expect the whole generate pipeline to stay AI-free — flag any LLM call introduced into the runtime path.
 - Must expect unit tests under `tests/` mirroring the package layout, with shared fixtures in `tests/conftest.py`.
 - Must treat the contracts as owned by `living-doc-utilities` — imported, not vendored: flag any committed `*-schema.json`, local contract model, or any artifact read other than through `read_artifact`.
-- Must check rendering changes against `SPEC.md` — the view rules in one presentation module the templates only render, the render manifest, `authoring.url_policy` on every emitted field and no raw HTML passthrough — and expect an implemented section to move out of `SPEC.md` in the same PR (`.claude/rules/docs-lifecycle.md`).
 - Must flag a test, lint or type tool added to `requirements.txt`, which the action installs on every run.
 - Must expect QA to run through the root `Makefile` — `make qa` covers `format-check`, `lint`, `types`, `runtime-requirements` and `coverage`; `.github/workflows/test.yml` calls the same targets.

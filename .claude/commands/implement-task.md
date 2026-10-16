@@ -36,8 +36,8 @@ Brief source (optional override): `$2`
   `test-author` agent for the test surface.
 - Do not change externally-visible contracts (`action.yml` inputs/`INPUT_*`, output keys,
   exit codes, contract-sensitive strings) unless the task explicitly calls for it.
-- If a spec section is being implemented, apply `.claude/rules/docs-lifecycle.md` in this
-  same change: move that section's content out of `SPEC.md` into the live docs.
+- Describe what the change builds in the live docs (`README.md`, `DEVELOPER.md`) in this same
+  change. The specification lives outside this repository, in the task's issue or brief.
 
 ## 4. Run the `make qa` loop until green
 

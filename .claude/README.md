@@ -14,7 +14,6 @@ hand, just slower. Nothing in CI or the release path requires them.
 | `commands/implement-task.md` | slash command | Drive a task from its GitHub issue or owner-provided brief, through acceptance criteria, to a PR-ready description. |
 | `commands/verify-pr-ready.md` | slash command | Convergent review loop before a PR: verified findings in a ledger, delta re-review, one yes/no. |
 | `agents/test-author.md` | subagent | Write deterministic pytest tests using this repo's real mock surface. |
-| `rules/docs-lifecycle.md` | rule | Implemented `SPEC.md` sections **move** into the live docs. |
 
 ## How the two commands relate
 

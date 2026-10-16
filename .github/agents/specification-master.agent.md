@@ -98,7 +98,7 @@ Non-goals
 Repo specifics
 
 - Spec locations
-  - Prefer `SPEC.md` for prospective (not-yet-built) behavior; follow `.claude/rules/docs-lifecycle.md` — an implemented section moves out of `SPEC.md` into the live docs in the same PR.
+  - Must take prospective (not-yet-built) behavior from the task's issue — the specification lives outside this repository, and the repository keeps no spec file.
   - Prefer `README.md` for what the action is for, its status, inputs and outputs, and `DEVELOPER.md` for the local-dev workflow, the gates and the action's venv rules.
 - Contract-sensitive outputs
   - The four inputs `document-type`, `source-path`, `output-path`, `document-title`, named as `living-doc-generator-pdf` names them, so the two generators stay interchangeable.
@@ -108,5 +108,4 @@ Repo specifics
   - The documents and the run report rendered from the `living-doc-utilities` contracts `generator-ready`, `ui-test-catalog` and `coverage-matrix`.
 - High-risk areas
   - `INPUT_*` parsing in `generator_markdown/action_inputs.py` — missing, empty and malformed values.
-  - The rendering design rules in `SPEC.md` — one presentation module, the render manifest, safe output.
   - GitHub Actions I/O — `INPUT_*` env var inputs and the `output-path` write.

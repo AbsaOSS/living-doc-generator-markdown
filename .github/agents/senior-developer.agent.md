@@ -109,7 +109,5 @@ Repo specifics
   - `INPUT_*` contract read only in `generator_markdown/action_inputs.py`, through `living_doc_utilities.github.utils.get_action_input`.
   - Exit codes — `1` on every failure; no run exits `0` until rendering writes a document; no `2`–`5` taxonomy.
   - The `ActionInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` asserted in `tests/generator_markdown/test_action_inputs.py` and `tests/test_main.py`.
-- Design rules
-  - Must build rendering to `SPEC.md` — one presentation module the templates only render, a render manifest, `authoring.url_policy` and no raw HTML — and move each implemented section out of `SPEC.md` (`.claude/rules/docs-lifecycle.md`).
 - AI-free principle
   - Must keep every generate step deterministic — no LLM call anywhere in the runtime path.

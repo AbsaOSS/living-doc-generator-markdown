@@ -18,7 +18,6 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 
 - A missing `document-type` or `source-path`, or an unknown `document-type`, fails the run with one line naming the input.
 - Valid inputs fail the run too, with `Rendering is not implemented yet: …`, so no pipeline mistakes this version for one that wrote a document.
-- The design rules the rendering is built to are in [SPEC.md](./SPEC.md).
 
 Do not add this action to a pipeline yet.
 

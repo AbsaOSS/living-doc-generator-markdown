@@ -21,7 +21,8 @@ Tooling and quality gates → Common pitfalls → Learned rules.
 one living-documentation input — `generator-ready.json`, `ui-test-catalog.json` or
 `coverage-matrix.json`, in the contracts `living-doc-utilities` owns — as plain Markdown files.
 It is the generate step of a living-documentation pipeline. Rendering is not implemented yet:
-the action validates its inputs and fails; `SPEC.md` holds the rules the rendering is built to.
+the action validates its inputs and fails. The specification lives outside this repository, in
+each task's issue.
 
 - Must treat execution as a GitHub Action on a GitHub-hosted runner as the supported path; a `python3 main.py` run is a development and debugging affordance only.
 - Must read action inputs from `INPUT_*` environment variables and nowhere else.
@@ -38,7 +39,6 @@ Module map — `main.py` at the root plus one package, `generator_markdown/`:
 | `generator_markdown/action_inputs.py` | Input layer — `DocumentType` (the three document types), `ActionInputs.from_environment()` reads every `INPUT_*` via `living_doc_utilities.github.utils.get_action_input` and raises `ActionInputError` with a one-line message |
 | `action.yml` | Composite action — the venv step (Python check, venv under `$RUNNER_TEMP`, install, import check) and the run step (`-E main.py`, every input in `env:`) |
 | `tools/check_runtime_requirements.py` | `make runtime-requirements` — the deny list that keeps `requirements.txt` runtime-only |
-| `SPEC.md` | The prospective rules — one presentation module, the render manifest, safe output |
 
 - Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → log `RENDERING_NOT_IMPLEMENTED_MESSAGE` → `sys.exit(1)`.
 - Must keep exactly one error line per failed run, since `tests/test_main.py` asserts there is one.
@@ -104,7 +104,6 @@ Contract-sensitive outputs:
 - Must let `main.run()` be the only place that translates a failure into an Action-failure exit code.
 - Must keep the filesystem boundary — reading the input, writing into `output-path` — explicit and mockable.
 - Must read an input artifact only with `living_doc_utilities.contracts.io.read_artifact`, and Must not add a local contract model or a committed schema copy.
-- Must follow `SPEC.md` when rendering lands — one presentation module the templates only render, a render manifest in the run report, `authoring.url_policy` on every emitted field and no raw HTML.
 
 ## Testing
 

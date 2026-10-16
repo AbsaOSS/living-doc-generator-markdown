@@ -115,6 +115,5 @@ Repo specifics
 - High-risk areas
   - `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`.
   - The venv step of `action.yml` — the `unset` line, the interpreter identity, the install into `$RUNNER_TEMP/living-doc-generator-markdown-venv`, the import check — and the run step's `-E` and `env:`.
-  - Any rendering change against `SPEC.md` — view rules outside the one presentation module, a missing render manifest, a link that skips `authoring.url_policy`, raw HTML passed through.
   - Any committed schema copy or local contract model — the contracts belong to `living-doc-utilities`.
   - Logging — avoid leaking tokens/headers; keep the whole generate path AI-free.
