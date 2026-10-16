@@ -1,0 +1,87 @@
+name: 'Living Documentation Generator for Markdown'
+description: 'Render living documentation as plain Markdown files. In development: validates its inputs and renders nothing yet.'
+inputs:
+  document-type:
+    description: 'Document to render: `technical-project`, `ui-test-catalog` or `coverage-matrix`.'
+    required: true
+  source-path:
+    description: 'Path to the input JSON file the document is rendered from.'
+    required: true
+  output-path:
+    description: 'Output directory; the document and its run report are written into it.'
+    required: false
+    default: './output/generator-markdown'
+  document-title:
+    description: 'Title of the document; optional.'
+    required: false
+    default: ''
+
+outputs:
+  output-path:
+    description: 'Resolved absolute output directory.'
+    value: ${{ steps.liv-doc-generator.outputs.output-path }}
+
+branding:
+  icon: 'book-open'
+  color: 'green'
+
+runs:
+  using: 'composite'
+  steps:
+
+    # The action brings its own virtual environment: it never installs into the runner's interpreter and
+    # never touches the caller's `PATH`, `PYTHONPATH` or environment. The venv lives under `$RUNNER_TEMP`
+    # and is reused, so two steps of this action in one job install once.
+    # Linux runners (`ubuntu-latest` and the like) are the target, so the venv's POSIX `bin/` layout is
+    # assumed throughout; Windows is a local-development platform here, not one this action runs on.
+    - name: Check Python and create the generator's venv
+      id: venv
+      shell: bash
+      run: |
+        # The install must land in the venv and nowhere else. These redirect pip's target directory or
+        # prepend to `sys.path`, so a caller that exports them would otherwise leave the venv empty or
+        # shadow its packages. Unset (not set empty: pip reads its own vars as config values).
+        unset PIP_TARGET PIP_PREFIX PIP_USER PYTHONPATH
+        PY="$(command -v python3 || command -v python || true)"
+        if [ -z "$PY" ] || ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then
+          echo "::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step."; exit 1
+        fi
+        VENV="$RUNNER_TEMP/living-doc-generator-markdown-venv"
+        # Reuse the venv only when it was built from the interpreter now on `PATH`. A job that switches
+        # `actions/setup-python` between two invocations would otherwise validate the new Python and then
+        # run the generator on the previous one's venv. `base_prefix` identifies the interpreter a venv was
+        # created from; for a plain interpreter it is its own prefix.
+        IDENTITY='import sys; print(sys.base_prefix, sys.version_info[:3])'
+        WANT="$("$PY" -c "$IDENTITY")"
+        HAVE=""
+        if [ -x "$VENV/bin/python" ]; then
+          HAVE="$("$VENV/bin/python" -c "$IDENTITY" 2>/dev/null || true)"
+        fi
+        if [ "$HAVE" != "$WANT" ]; then
+          rm -rf "$VENV"
+          "$PY" -m venv "$VENV" || { echo "::error::living-doc-generator-markdown: '$PY -m venv' failed; install the venv module."; exit 1; }
+        fi
+        "$VENV/bin/pip" install -r "${{ github.action_path }}/requirements.txt"
+        # `pip` also reads its own config files (`/etc/pip.conf`, `~/.config/pip/pip.conf`), which the
+        # `unset` above cannot reach: a runner that sets `target` or `prefix` there redirects the packages
+        # out of the venv, and `pip` still exits 0. The generator would then fail in the next step, on an
+        # import, as if the package were at fault. One import through the venv's own interpreter - which
+        # sees nothing but the venv and, from the action's directory, the generator's own package,
+        # `PYTHONPATH` being unset - reports it here instead, where it happened.
+        (cd "${{ github.action_path }}" && "$VENV/bin/python" -c 'import living_doc_utilities, generator_markdown') || {
+          echo "::error::living-doc-generator-markdown's requirements did not land in $VENV; check the runner's pip configuration for a 'target' or 'prefix' setting that redirects them."; exit 1; }
+        echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+
+    - name: Run Living Documentation Generator for Markdown
+      id: liv-doc-generator
+      env:
+        INPUT_DOCUMENT_TYPE: ${{ inputs.document-type }}
+        INPUT_SOURCE_PATH: ${{ inputs.source-path }}
+        INPUT_OUTPUT_PATH: ${{ inputs.output-path }}
+        INPUT_DOCUMENT_TITLE: ${{ inputs.document-title }}
+      run: |
+        # `-E`: a venv isolates site-packages, not the environment. A caller's `PYTHONPATH` still precedes
+        # the venv on `sys.path`, so a package vendored there would shadow the pinned one; `-E` makes the
+        # interpreter ignore the whole `PYTHON*` set. `INPUT_*` above is unaffected.
+        "${{ steps.venv.outputs.python }}" -E "${{ github.action_path }}/main.py"
+      shell: bash

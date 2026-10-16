@@ -1,0 +1,177 @@
+#
+# Copyright 2026 ABSA Group Limited
+#
+# Licensed under the Apache License, Version 2.0 (the "License");
+# you may not use this file except in compliance with the License.
+# You may obtain a copy of the License at
+#
+#     http://www.apache.org/licenses/LICENSE-2.0
+#
+# Unless required by applicable law or agreed to in writing, software
+# distributed under the License is distributed on an "AS IS" BASIS,
+# WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+# See the License for the specific language governing permissions and
+# limitations under the License.
+#
+
+name: "Static analysis & tests"
+
+on:
+  push:
+    branches: [ "master" ]
+  pull_request:
+    types: [ opened, synchronize, reopened ]
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  detect:
+    name: Detect Python Changes
+    runs-on: ubuntu-latest
+    outputs:
+      python_changed: ${{ steps.changes.outputs.python_changed }}
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Check whether Python-related files changed
+        id: changes
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+
+          # A rename lists its old path too, so moving a file out of the filtered set still runs the tests.
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            changed_files=$(gh api \
+              "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
+              --paginate --jq '.[] | .filename, (.previous_filename // empty)')
+          else
+            changed_files=$(git diff --name-only --no-renames "${{ github.sha }}~1" "${{ github.sha }}")
+          fi
+
+          # `action.yml` is in the list because tests/test_action_yml.py reads it: an `action.yml`-only change
+          # still runs the tests.
+          if echo "$changed_files" | grep -E '(\.py$|(^|/)requirements(-dev)?\.txt$|(^|/)pyproject\.toml$|^tests/fixtures/|^Makefile$|^\.pylintrc$|^action\.yml$|^\.github/workflows/test\.yml$)' > /dev/null; then
+            echo "python_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "python_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+  # Static checks give the same result on every interpreter, so they run once, on the
+  # supported floor: syntax newer than 3.10 fails here.
+  static-checks:
+    needs: detect
+    if: needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    name: ${{ matrix.task.name }} (Python 3.10)
+    strategy:
+      fail-fast: false
+      matrix:
+        task:
+          - name: Black Format Check
+            target: format-check
+          - name: Pylint Analysis
+            target: lint
+          - name: Mypy Type Check
+            target: types
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Run ${{ matrix.task.name }}
+        run: make ${{ matrix.task.target }}
+
+  # The runtime-requirements deny list reads `requirements.txt`, not only Python, so it runs on every change.
+  # Together with the matrix above and the tests below it covers every `make qa` target, which is what lets
+  # the Makefile and DEVELOPER.md claim local runs and CI never drift.
+  contract-checks:
+    runs-on: ubuntu-latest
+    name: Contract Checks (Python 3.10)
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: "3.10"
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Run contract checks
+        run: make runtime-requirements
+
+  tests:
+    needs: detect
+    if: needs.detect.outputs.python_changed == 'true'
+    runs-on: ubuntu-latest
+    name: Python Tests (Python ${{ matrix.python-version }})
+    strategy:
+      fail-fast: false
+      matrix:
+        # Python 3.10 is the supported floor (see `requires-python` in pyproject.toml); the action runs on
+        # whatever Python >= 3.10 the caller puts on PATH, so every version up to 3.14 is tested.
+        python-version: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+
+      - name: Set up Python
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: ${{ matrix.python-version }}
+          cache: 'pip'
+          cache-dependency-path: 'requirements*.txt'
+
+      - name: Install dependencies
+        run: make install
+
+      - name: Run tests with coverage
+        run: make coverage
+
+  # Single required status check. Always runs, so it always reports; skipped jobs
+  # (no relevant changes) pass, failed or cancelled ones fail.
+  qa-gate:
+    needs: [ detect, static-checks, contract-checks, tests ]
+    if: always()
+    runs-on: ubuntu-latest
+    name: QA Gate
+    steps:
+      - name: Fail if any required job failed or was cancelled
+        if: contains(needs.*.result, 'failure') || contains(needs.*.result, 'cancelled')
+        run: |
+          echo "::error::a required job failed or was cancelled."
+          exit 1
