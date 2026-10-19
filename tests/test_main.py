@@ -22,6 +22,7 @@ from pathlib import Path
 
 import pytest
 from living_doc_utilities.contracts import coverage_matrix, doc_source, generator_ready, ui_test_catalog
+from living_doc_utilities.contracts.compat import installed_utilities_version
 
 from main import RENDERING_NOT_IMPLEMENTED_MESSAGE, run
 
@@ -176,21 +177,36 @@ def test_the_entry_point_run_as_the_action_runs_it_prints_one_error_line(
     assert list(run_dir.iterdir()) == []
 
 
+def _valid_action_inputs(write_sample) -> dict[str, str]:
+    write_sample(generator_ready.CONTRACT_ID, "input.json")
+    return {"INPUT_DOCUMENT_TYPE": "technical-project", "INPUT_SOURCE_PATH": "input.json"}
+
+
 @pytest.mark.parametrize("verbose_logging", ["true", "True"])
-def test_verbose_logging_makes_the_entry_point_print_debug_lines(tmp_path, verbose_logging):
+def test_verbose_logging_makes_the_entry_point_print_the_generators_debug_line(tmp_path, write_sample, verbose_logging):
+    # Arrange
+    inputs = {**_valid_action_inputs(write_sample), "INPUT_VERBOSE_LOGGING": verbose_logging}
+
     # Act
-    result = _run_entry_point(tmp_path, _action_env({"INPUT_VERBOSE_LOGGING": verbose_logging}))
+    result = _run_entry_point(tmp_path, _action_env(inputs))
 
     # Assert
     assert result.returncode == 1
     assert all(LOG_LINE.match(line) for line in result.stdout.splitlines()), result.stdout
-    assert [line for line in result.stdout.splitlines() if " - DEBUG - " in line] != [], result.stdout
+    debug_lines = [line for line in result.stdout.splitlines() if " - DEBUG - " in line]
+    assert any(
+        "Liv-Doc generator for Markdown - input written by " in line
+        and line.endswith(f" with living-doc-utilities {installed_utilities_version()!r}.")
+        for line in debug_lines
+    ), result.stdout
 
 
 @pytest.mark.parametrize("verbose_logging", [None, "false"])
-def test_without_verbose_logging_the_entry_point_prints_no_debug_line(tmp_path, verbose_logging):
+def test_without_verbose_logging_the_entry_point_prints_no_debug_line(tmp_path, write_sample, verbose_logging):
     # Arrange
-    inputs = {} if verbose_logging is None else {"INPUT_VERBOSE_LOGGING": verbose_logging}
+    inputs = _valid_action_inputs(write_sample)
+    if verbose_logging is not None:
+        inputs["INPUT_VERBOSE_LOGGING"] = verbose_logging
 
     # Act
     result = _run_entry_point(tmp_path, _action_env(inputs))

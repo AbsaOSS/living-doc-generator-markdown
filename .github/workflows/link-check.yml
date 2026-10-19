@@ -86,6 +86,7 @@ jobs:
         with:
           args: >-
             --no-progress
+            --hidden
             --include-fragments
             --max-retries 3
             --retry-wait-time 5

@@ -12,7 +12,7 @@ surface** — so you mock the right target on the first try instead of guessing.
 
 - Must use `pytest` + `pytest-mock` (`mocker`). Tests live under `tests/`, mirroring the
   package layout (`tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`,
-  `tests/test_contract_checks.py` and `tests/test_runtime_requirements.py`).
+  `tests/test_contract_checks.py`, `tests/test_runtime_requirements.py` and `tests/test_write_sample_inputs.py`).
 - Must set `INPUT_*` environment variables with `monkeypatch.setenv`; `tests/conftest.py` clears
   every inherited `INPUT_*` before each test, so an unset input reads as unset.
 - Must not call the GitHub API or any network service.

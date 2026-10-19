@@ -85,8 +85,8 @@ Non-goals
 Repo specifics
 
 - Test locations
-  - Tests: `tests/` (mirrors the package tree — `tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`, `tests/test_runtime_requirements.py`).
-  - Shared fixtures: `tests/conftest.py` (clears every inherited `INPUT_*`; `valid_inputs`).
+  - Tests: `tests/` (mirrors the package tree — `tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`, `tests/test_contract_checks.py`, `tests/test_runtime_requirements.py`, `tests/test_write_sample_inputs.py`).
+  - Shared fixtures: `tests/conftest.py` (clears every inherited `INPUT_*`; `valid_inputs`, `write_sample`).
 - Coverage target
   - Must keep coverage ≥ 80% when running `make coverage`.
 - Mocking rules

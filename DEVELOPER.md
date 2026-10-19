@@ -41,7 +41,7 @@ stops at the first failure. Run it before opening a pull request.
 | `make format-check` | Black in check mode | clean |
 | `make lint` | ruff, then Pylint; Pylint skips `tests/` | Pylint ≥ 9.5 / 10 (`PYLINT_MIN`) |
 | `make types` | mypy over the project; `tests/` is excluded | clean |
-| `make no-vendored-schemas` | `living-doc-utilities`' `check_no_vendored_schemas` over git's index | no committed `*-schema.json` or `*.schema.json` outside `tests/` |
+| `make no-vendored-schemas` | `living-doc-utilities`' `check_no_vendored_schemas` over git's index | no committed `*-schema.json` or `*.schema.json` outside a `tests/` directory |
 | `make runtime-requirements` | `tools/check_runtime_requirements.py` | no test, lint or type tool in `requirements.txt` |
 | `make test` | pytest over `tests/` | pass |
 | `make coverage` | pytest with coverage; `tests/` is not measured | ≥ 80 % (`COV_MIN`) |
@@ -64,13 +64,11 @@ python3 main.py
 - Each input is an `INPUT_<NAME>` variable, upper case with `_` for `-`, as `action.yml` passes it.
 - `INPUT_VERBOSE_LOGGING=true`, in any case, switches the log to DEBUG, as `RUNNER_DEBUG=1` does;
   `living-doc-utilities`' `setup_logging()` reads both, not `ActionInputs`.
-- Without `living-doc-toolkit`, write an input from `living-doc-utilities`' samples; `ui-test-catalog-v1.0.0` and
-  `coverage-matrix-v1.0.0` give the other two document types':
+- Without `living-doc-toolkit`, write an input from `living-doc-utilities`' samples; `ui-test-catalog` and
+  `coverage-matrix` give the other two document types':
 
   ```shell
-  python3 -c 'from living_doc_utilities.contracts.io import write_artifact
-  from living_doc_utilities.contracts.testing import full_sample
-  write_artifact(full_sample("generator-ready-v1.0.0"), "generator-ready.json")'
+  python3 tools/write_sample_inputs.py . generator-ready
   ```
 
 - Rendering is not implemented yet: a run with a valid input reads it, then ends with
@@ -106,8 +104,8 @@ links.
 - `QA Gate` is the job to mark as the one required check: it always runs, passes over a skipped job and fails on a
   failed or cancelled one.
   - Why: a required check must report on every pull request, also on one that changed no Python.
-- The gates run when a Python-related file changed: `*.py`, `requirements*.txt`, `pyproject.toml`, `Makefile`,
-  `.pylintrc`, `action.yml`, `test.yml` or `tests/fixtures/`.
+- The gates run when a Python-related file changed: `*.py`, `requirements.txt`, `requirements-dev.txt`,
+  `pyproject.toml`, `Makefile`, `.pylintrc`, `action.yml`, `test.yml` or `tests/fixtures/`.
   - `action.yml` is in the list because `tests/test_action_yml.py` reads it.
   - On a pull request a renamed file counts by its old path too, so moving a file out of that set still runs the
     tests.
@@ -125,8 +123,8 @@ links.
   - Why: rendering is not implemented yet, so a run with a valid input fails on purpose; a step that succeeded would
     mean a run passed for a document it never wrote.
 - The jobs need only `contents: read`: they run the repository's code and make no GitHub API call.
-- Each job first writes its inputs with `living-doc-utilities`' `full_sample()` and `write_artifact`, in a
-  throwaway venv built from `requirements.txt`.
+- Each job first writes the inputs it reads with `tools/write_sample_inputs.py` (`living-doc-utilities`'
+  `full_sample()` and `write_artifact`), in a throwaway venv built from `requirements.txt`.
   - Why: no sample is committed, so the inputs always match the pinned contracts; the runner's interpreter is the
     one under test, and the isolation job breaks it on purpose.
 - The isolation job installs `pydantic<2` into the runner's interpreter and compares its `python`, version and
@@ -136,14 +134,14 @@ links.
 - It proves the reuse by `pyvenv.cfg`'s mtime, unchanged between its two runs of the action.
   - Why: `python -m venv` without `--clear` keeps the files already in the directory, so a marker file survives a
     re-create; `pyvenv.cfg` is rewritten on every create.
-- It replays `main.py` on the action's venv, as the action runs it, on the job's input, and expects the input read
-  and the not-implemented line.
+- It replays `main.py` on the action's venv, as the action runs it, on each of its two inputs, and expects the input
+  read and the not-implemented line.
   - Why: a failed install would stop on an import, and a wrong input on reading it.
 - The rebuild job runs the action on 3.12, switches `setup-python` to 3.11, runs it again, and asks the venv's own
   interpreter for its version.
   - Why: the isolation job runs on one Python, so it cannot see the interpreter comparison; a reused venv would
     still report 3.12, so the version proves the rebuild, where an mtime would not.
-- The 3.9 job writes its inputs on 3.12, switches to 3.9, and asserts that `PATH`'s Python is 3.9 before it
+- The 3.9 job writes its input on 3.12, switches to 3.9, and asserts that `PATH`'s Python is 3.9 before it
   checks the failure.
   - Why: otherwise it would also pass if `setup-python` resolved something newer and the action failed for another
     reason.

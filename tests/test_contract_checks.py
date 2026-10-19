@@ -15,11 +15,16 @@
 #
 from pathlib import Path
 
+import pytest
 from living_doc_utilities.contracts.check_no_vendored_schemas import find_vendored_schemas
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 
 
 def test_no_contract_schema_is_committed():
+    # Arrange: the check reads git's index, which an exported tree has none of.
+    if not (REPO_ROOT / ".git").exists():
+        pytest.skip("not a git work tree")
+
     # Assert: the contract schemas come from the installed living-doc-utilities, never a committed copy.
     assert find_vendored_schemas(REPO_ROOT) == []

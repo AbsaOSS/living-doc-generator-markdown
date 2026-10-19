@@ -24,10 +24,10 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 | `ui-test-catalog` | `ui-test-catalog.json` | `normalize-tests` |
 | `coverage-matrix` | `coverage-matrix.json` | `coverage-matrix` |
 
-Today's `living-doc-toolkit` writes none of these files yet; [DEVELOPER.md § Debug run](DEVELOPER.md#debug-run) writes one from the `living-doc-utilities` samples.
+Today's `living-doc-toolkit` does not write these files in their contracts' format yet — its `generator-ready.json` and `coverage-matrix.json` are rejected; [DEVELOPER.md § Debug run](DEVELOPER.md#debug-run) writes one from the `living-doc-utilities` samples.
 
 - A missing `document-type` or `source-path`, or an unknown `document-type`, fails the run with one line naming the input.
-- A `source-path` that is missing, unreadable or not JSON, or a file its contract rejects, fails the run with one line naming `source-path`.
+- A `source-path` that is missing, not a regular file, unreadable, or not JSON it can load, or a file its contract rejects, fails the run with one line naming `source-path`.
 - A collector output (`doc-source`, `doc-entities`, `ui-tests`) fails with one line naming the `living-doc-toolkit` command that writes the document type's input; another document type's file fails naming its `document-type`.
 - A valid input fails the run too, with `Rendering is not implemented yet: …`, so no pipeline mistakes this version for one that wrote a document.
 
@@ -35,7 +35,7 @@ Do not add this action to a pipeline yet.
 
 ## Developer Guide
 
-Setup, quality gates, a debug run and the action's venv rules: [DEVELOPER.md](./DEVELOPER.md).
+Setup, quality gates, a debug run, the action's venv rules and what CI runs: [DEVELOPER.md](./DEVELOPER.md).
 
 ## Contribution Guidelines
 

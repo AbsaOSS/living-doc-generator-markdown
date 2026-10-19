@@ -25,6 +25,7 @@ on:
       - 'requirements.txt'
       - 'requirements-dev.txt'
       - 'action.yml'
+      - 'tools/write_sample_inputs.py'
       - '.github/workflows/integration_test.yml'
   workflow_dispatch:
 
@@ -51,17 +52,9 @@ jobs:
           set -euo pipefail
           python -m venv "${RUNNER_TEMP}/samples-venv"
           "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
-          "${RUNNER_TEMP}/samples-venv/bin/python" - "${RUNNER_TEMP}/inputs" <<'EOF'
-          import sys
-          from pathlib import Path
-          from living_doc_utilities.contracts import coverage_matrix, generator_ready
-          from living_doc_utilities.contracts.io import write_artifact
-          from living_doc_utilities.contracts.testing import full_sample
-          for name, contract in (("generator-ready", generator_ready), ("coverage-matrix", coverage_matrix)):
-              write_artifact(full_sample(contract.CONTRACT_ID), Path(sys.argv[1]) / f"{name}.json")
-          EOF
+          "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" \
+            generator-ready coverage-matrix
           rm -rf "${RUNNER_TEMP}/samples-venv"
-          ls -l "${RUNNER_TEMP}/inputs"
 
       - name: Install a conflicting pydantic into the runner's interpreter
         run: |
@@ -103,22 +96,26 @@ jobs:
           test "${{ steps.second.outcome }}" = failure
           test ! -e "${{ github.workspace }}/output"
           test "$(stat -c %Y "$VENV/pyvenv.cfg")" = "$(cat "${RUNNER_TEMP}/venv-cfg-mtime.txt")"
-          set +e
-          INPUT_DOCUMENT_TYPE=technical-project INPUT_SOURCE_PATH="${RUNNER_TEMP}/inputs/generator-ready.json" \
-            "$VENV/bin/python" -E main.py > "${RUNNER_TEMP}/replay.log" 2>&1
-          status=$?
-          set -e
-          cat "${RUNNER_TEMP}/replay.log"
-          test "$status" = 1
-          grep -F 'input read: `generator-ready-v' "${RUNNER_TEMP}/replay.log"
-          grep -F 'Rendering is not implemented yet' "${RUNNER_TEMP}/replay.log"
+          replay() {
+            set +e
+            INPUT_DOCUMENT_TYPE="$1" INPUT_SOURCE_PATH="${RUNNER_TEMP}/inputs/$2.json" \
+              "$VENV/bin/python" -E main.py > "${RUNNER_TEMP}/replay-$2.log" 2>&1
+            status=$?
+            set -e
+            cat "${RUNNER_TEMP}/replay-$2.log"
+            test "$status" = 1
+            grep -F "input read: \`$2-v" "${RUNNER_TEMP}/replay-$2.log"
+            grep -F 'Rendering is not implemented yet' "${RUNNER_TEMP}/replay-$2.log"
+          }
+          replay technical-project generator-ready
+          replay coverage-matrix coverage-matrix
           {
             which python
             python --version
             python -c 'import pydantic; print(pydantic.VERSION)'
           } | tee "${RUNNER_TEMP}/after.txt"
           diff "${RUNNER_TEMP}/before.txt" "${RUNNER_TEMP}/after.txt"
-          echo '::notice::both steps failed, the replay read its input and stopped on the not-implemented message, the venv was reused, and the runner interpreter is unchanged.'
+          echo '::notice::both steps failed, both replays read their input and stopped on the not-implemented message, the venv was reused, and the runner interpreter is unchanged.'
 
   action-venv-rebuilt-when-python-changes:
     runs-on: ubuntu-latest
@@ -134,22 +131,13 @@ jobs:
         with:
           python-version: '3.12'
 
-      - name: Write the inputs from the living-doc-utilities samples
+      - name: Write the input from the living-doc-utilities samples
         run: |
           set -euo pipefail
           python -m venv "${RUNNER_TEMP}/samples-venv"
           "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
-          "${RUNNER_TEMP}/samples-venv/bin/python" - "${RUNNER_TEMP}/inputs" <<'EOF'
-          import sys
-          from pathlib import Path
-          from living_doc_utilities.contracts import coverage_matrix, generator_ready
-          from living_doc_utilities.contracts.io import write_artifact
-          from living_doc_utilities.contracts.testing import full_sample
-          for name, contract in (("generator-ready", generator_ready), ("coverage-matrix", coverage_matrix)):
-              write_artifact(full_sample(contract.CONTRACT_ID), Path(sys.argv[1]) / f"{name}.json")
-          EOF
+          "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" generator-ready
           rm -rf "${RUNNER_TEMP}/samples-venv"
-          ls -l "${RUNNER_TEMP}/inputs"
 
       - name: Run the action on 3.12
         id: on-312
@@ -196,27 +184,18 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Set up Python 3.12 for the inputs
+      - name: Set up Python 3.12 for the input
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
-      - name: Write the inputs from the living-doc-utilities samples
+      - name: Write the input from the living-doc-utilities samples
         run: |
           set -euo pipefail
           python -m venv "${RUNNER_TEMP}/samples-venv"
           "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
-          "${RUNNER_TEMP}/samples-venv/bin/python" - "${RUNNER_TEMP}/inputs" <<'EOF'
-          import sys
-          from pathlib import Path
-          from living_doc_utilities.contracts import coverage_matrix, generator_ready
-          from living_doc_utilities.contracts.io import write_artifact
-          from living_doc_utilities.contracts.testing import full_sample
-          for name, contract in (("generator-ready", generator_ready), ("coverage-matrix", coverage_matrix)):
-              write_artifact(full_sample(contract.CONTRACT_ID), Path(sys.argv[1]) / f"{name}.json")
-          EOF
+          "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" generator-ready
           rm -rf "${RUNNER_TEMP}/samples-venv"
-          ls -l "${RUNNER_TEMP}/inputs"
 
       - name: Set up Python 3.9
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0

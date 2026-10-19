@@ -66,6 +66,14 @@ def run() -> None:
         sys.exit(1)
 
     logger.info("Liv-Doc generator for Markdown - input read: `%s`.", document.schema_version)
+    producer = document.metadata.producer
+    # `%r`: the file's own values stay on one log line.
+    logger.debug(
+        "Liv-Doc generator for Markdown - input written by %r %r with living-doc-utilities %r.",
+        producer.name,
+        producer.version,
+        producer.utilities_version,
+    )
     logger.error("%s", RENDERING_NOT_IMPLEMENTED_MESSAGE)
     sys.exit(1)
 

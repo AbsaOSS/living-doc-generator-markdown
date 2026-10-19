@@ -27,7 +27,7 @@ each task's issue.
 - Must treat execution as a GitHub Action on a GitHub-hosted runner as the supported path; a `python3 main.py` run is a development and debugging affordance only.
 - Must read action inputs from `INPUT_*` environment variables and nowhere else.
 - Must keep the whole generate pipeline AI-free — deterministic Python only, no LLM call anywhere in that path.
-- Must keep environment access at the module boundary — `generator_markdown/action_inputs.py` — and Must keep any other module free of environment reads.
+- Must keep environment access at the module boundary — `generator_markdown/action_inputs.py` — and Must keep any other module free of environment reads; `living-doc-utilities`' `setup_logging()`, called from `main.py`, reads `INPUT_VERBOSE_LOGGING` and `RUNNER_DEBUG` itself.
 
 ## Repo specifics
 
@@ -40,8 +40,9 @@ Module map — `main.py` at the root plus one package, `generator_markdown/`:
 | `generator_markdown/source_reader.py` | Input file reader — `read_source()` reads `source-path` with `living_doc_utilities.contracts.io.read_artifact` as the one contract its document type renders (`CONTRACT_NAMES`) and returns the typed model; every failure is a `SourceInputError` with a one-line message naming `source-path` (`TOOLKIT_COMMANDS` for a collector output) |
 | `action.yml` | Composite action — the venv step (Python check, venv under `$RUNNER_TEMP`, install, import check) and the run step (`-E main.py`, every input in `env:`) |
 | `tools/check_runtime_requirements.py` | `make runtime-requirements` — the deny list that keeps `requirements.txt` runtime-only |
+| `tools/write_sample_inputs.py` | Writes `living-doc-utilities`' full sample of each named contract into a directory — the integration jobs' inputs and a debug run's |
 
-- Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → `read_source()`, logging a `SourceInputError` and `sys.exit(1)` → log ``"Liv-Doc generator for Markdown - input read: `<schema_version>`."`` → log `RENDERING_NOT_IMPLEMENTED_MESSAGE` → `sys.exit(1)`.
+- Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → `read_source()`, logging a `SourceInputError` and `sys.exit(1)` → log ``"Liv-Doc generator for Markdown - input read: `<schema_version>`."`` → log the input's producer at DEBUG → log `RENDERING_NOT_IMPLEMENTED_MESSAGE` → `sys.exit(1)`.
 - Must keep exactly one error line per failed run, since `tests/test_main.py` asserts there is one.
 
 Inputs — `INPUT_*` environment variables, parsed only in `ActionInputs` but `verbose-logging` (the first four named as `living-doc-generator-pdf` declares them, `verbose-logging` as `living-doc-collector-gh` does):
@@ -70,7 +71,7 @@ Contract-sensitive outputs:
 - Prefer explicit code over clever constructs.
 - Must keep externally visible behaviour stable unless the task is an intentional contract change.
 - Must not change existing log texts or error messages without a stated reason.
-- Prefer pure functions for reading and rendering logic, and Avoid reading the environment outside `generator_markdown/action_inputs.py`.
+- Prefer pure functions for reading and rendering logic, and Avoid reading the environment outside `generator_markdown/action_inputs.py` (`setup_logging()` excepted).
 
 ## Inputs
 
@@ -111,11 +112,11 @@ Contract-sensitive outputs:
 ## Testing
 
 - Must use `pytest` with `pytest-mock` (`mocker`), and Must not use `unittest`.
-- Must keep tests under `tests/`, mirroring the package layout — `tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`, `tests/test_contract_checks.py` and `tests/test_runtime_requirements.py`.
+- Must keep tests under `tests/`, mirroring the package layout — `tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`, `tests/test_contract_checks.py`, `tests/test_runtime_requirements.py` and `tests/test_write_sample_inputs.py`.
 - Must test behaviour — return values, raised exceptions, log messages, exit codes.
 - Must set `INPUT_*` environment variables with `monkeypatch.setenv` in unit tests; `tests/conftest.py` clears every inherited `INPUT_*` first.
 - Must not call external services or the GitHub API in unit tests.
-- Prefer shared fixtures in `tests/conftest.py` (`valid_inputs`).
+- Prefer shared fixtures in `tests/conftest.py` (`valid_inputs`, `write_sample`).
 - Must treat the contracts as owned by `living-doc-utilities` — imported, never vendored: no committed `*-schema.json`, no local contract model.
 
 ## Tooling and quality gates

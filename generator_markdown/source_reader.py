@@ -23,7 +23,7 @@ import json
 import os
 import re
 from pathlib import Path
-from typing import Union
+from typing import Union, cast
 
 from living_doc_utilities.contracts.codes import Code, ContractError
 from living_doc_utilities.contracts.compat import installed_utilities_version
@@ -55,8 +55,12 @@ COLLECTOR_CONTRACT_NAMES = frozenset({"doc-source", "doc-entities", "ui-tests"})
 
 _DOCUMENT_TYPES_BY_CONTRACT = {name: document_type for document_type, name in CONTRACT_NAMES.items()}
 
-# `CONTRACT_MISMATCH` names the file's own contract only in its message: "expected one of [...], got '<name>'".
+# `CONTRACT_MISMATCH` names the file's own contract only in its message: "expected one of [...], got '<name>'". A
+# `utilities` that rewords it drops the hints to the generic line, which the exact-text hint tests catch on a re-pin.
 _MISMATCHED_NAME_RE = re.compile(r", got '([a-z0-9-]+)'$")
+
+# A schema error quotes the failing value; a longer detail is cut in the middle, so the pin hint at its end stays.
+_MAX_DETAIL_LENGTH = 1000
 
 
 class SourceInputError(Exception):
@@ -75,22 +79,27 @@ def read_source(document_type: DocumentType, source_path: str) -> SourceDocument
     expected = CONTRACT_NAMES[document_type]
     # `!r` keeps a path with a line break on the one line the run fails with.
     named = f"Input `{SOURCE_PATH}` is {source_path!r}"
+    source = Path(source_path)
     try:
+        # A FIFO or a device would block the read or never end it.
+        if source.exists() and not (source.is_file() or source.is_dir()):
+            raise SourceInputError(f"{named}, not a regular file.")
         document = read_artifact(source_path, expected=expected)
     except ContractError as error:
         raise SourceInputError(_contract_error_line(named, document_type, error)) from error
     except IsADirectoryError as error:
         raise SourceInputError(f"{named}, a directory, not a JSON file.") from error
-    except FileNotFoundError as error:
-        if error.filename == os.fspath(Path(source_path)):
-            raise SourceInputError(f"{named}, which does not exist.") from error
-        # The file was read: the schema of the `expected` version it declares is not in the installed library.
-        raise SourceInputError(
-            f"{named}, a `{expected}` version living-doc-utilities {installed_utilities_version()} ships no "
-            f"schema for ({Path(error.filename).name!r}); the components run different utilities versions — "
-            "align the pins."
-        ) from error
     except OSError as error:
+        if error.filename is not None and Path(os.fspath(error.filename)) != source:
+            # The file was read: the schema of the `expected` version it declares cannot be opened in the library.
+            schema_file = _one_line(repr(Path(os.fspath(error.filename)).name))
+            raise SourceInputError(
+                f"{named}, a `{expected}` version living-doc-utilities {installed_utilities_version()} ships no "
+                f"schema for ({schema_file}); check its `schema_version`, or align the pins if the components run "
+                "different utilities versions."
+            ) from error
+        if isinstance(error, FileNotFoundError):
+            raise SourceInputError(f"{named}, which does not exist.") from error
         raise SourceInputError(f"{named}, which cannot be read: {error.strerror}.") from error
     except UnicodeDecodeError as error:
         raise SourceInputError(f"{named}, which is not UTF-8 text: {error.reason} at byte {error.start}.") from error
@@ -98,14 +107,16 @@ def read_source(document_type: DocumentType, source_path: str) -> SourceDocument
         raise SourceInputError(
             f"{named}, which is not JSON: {error.msg} at line {error.lineno}, column {error.colno}."
         ) from error
-    except (ValueError, RecursionError) as error:
-        # JSON can still fail to load: an integer past Python's digit limit, nesting past its recursion limit, or a
-        # value a contract model's own check cannot report.
-        raise SourceInputError(f"{named}, which cannot be loaded: {' '.join(str(error).split())}.") from error
+    except RecursionError as error:
+        raise SourceInputError(f"{named}, which is nested too deeply to read.") from error
+    except ValueError as error:
+        # JSON can still fail to load: an integer past Python's digit limit, or a value a contract model's own check
+        # cannot report. CPython's advice to raise the limit is not the action user's to take.
+        detail = str(error).split("; use sys.set_int_max_str_digits()", 1)[0]
+        raise SourceInputError(f"{named}, which cannot be loaded: {_one_line(detail)}.") from error
 
     # `read_artifact` returns the typed model of the one contract it was asked for, never a dict.
-    assert isinstance(document, (GeneratorReadyResult, UiTestCatalogResult, CoverageMatrixResult))
-    return document
+    return cast(SourceDocument, document)
 
 
 def _contract_error_line(named: str, document_type: DocumentType, error: ContractError) -> str:
@@ -126,4 +137,13 @@ def _contract_error_line(named: str, document_type: DocumentType, error: Contrac
                 f"renders; document type `{document_type.value}` reads a `{expected}` file."
             )
     # A model-level failure carries pydantic's multi-line report; the run fails with one line.
-    return f"{named}, not a valid `{expected}` file: {' '.join(str(error).split())}"
+    return f"{named}, not a valid `{expected}` file: {_one_line(str(error))}"
+
+
+def _one_line(text: str) -> str:
+    """`text` on one line, at most `_MAX_DETAIL_LENGTH` characters plus the cut mark."""
+    line = " ".join(text.split())
+    if len(line) <= _MAX_DETAIL_LENGTH:
+        return line
+    kept = _MAX_DETAIL_LENGTH // 2
+    return f"{line[:kept]} … {line[-kept:]}"

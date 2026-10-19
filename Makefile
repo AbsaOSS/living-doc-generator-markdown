@@ -37,7 +37,7 @@ types: ## Run the mypy static type checker.
 	mypy .
 
 # The contract schemas come from the installed living-doc-utilities; no copy of one is committed here.
-no-vendored-schemas: ## Fail on any committed contract schema file.
+no-vendored-schemas: ## Fail on any committed contract schema file outside a tests/ directory.
 	$(PYTHON) -m living_doc_utilities.contracts.check_no_vendored_schemas
 
 # The action installs requirements.txt into its venv on every run, so it stays runtime-only; the dev tools

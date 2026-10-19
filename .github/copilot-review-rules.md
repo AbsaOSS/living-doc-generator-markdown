@@ -43,7 +43,7 @@ repo's own risk areas and review expectations; it is not shared with other repos
 **Additional focus**
 
 - Prefer confirming that previous review comments were addressed correctly.
-- Must re-check high-risk areas — `INPUT_*` parsing in `generator_markdown/action_inputs.py`, the venv and run steps of `action.yml`, and the failure-to-exit-code mapping in `main.run()`.
+- Must re-check high-risk areas — `INPUT_*` parsing in `generator_markdown/action_inputs.py`, `source-path` reading in `generator_markdown/source_reader.py`, the venv and run steps of `action.yml`, and the failure-to-exit-code mapping in `main.run()`.
 - Prefer looking for hidden side effects — backward compatibility, failure modes, behaviour on missing or malformed inputs, and a run that exits `0` without writing a document.
 - Prefer validating safe defaults — least privilege, safe error messages, one error line per failed run.
 
@@ -67,7 +67,7 @@ repo's own risk areas and review expectations; it is not shared with other repos
 
 ## Repo specifics
 
-- Must treat these as high-risk areas — `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`, the venv step of `action.yml` (the `unset` line, the interpreter identity, the install, the import check) and its run step (`-E`, every input in `env:`), and any future write into `output-path`.
+- Must treat these as high-risk areas — `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`, `source-path` reading in `generator_markdown/source_reader.py` (one line naming the input for every failure), the venv step of `action.yml` (the `unset` line, the interpreter identity, the install, the import check) and its run step (`-E`, every input in `env:`), and any future write into `output-path`.
 - Must treat these as contract-sensitive — the input names (`document-type`, `source-path`, `output-path`, `document-title`, as `living-doc-generator-pdf` names them, and `verbose-logging`, as `living-doc-collector-gh` names it), the Action output key `output-path`, the default `./output/generator-markdown`, exit code `1` on every failure, the `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` (tests assert exact content), and one `::error::` line per `action.yml` failure.
 - Must flag any change that lets a run with valid inputs exit `0` before rendering writes a document.
 - Must expect the whole generate pipeline to stay AI-free — flag any LLM call introduced into the runtime path.

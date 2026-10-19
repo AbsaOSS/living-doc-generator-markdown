@@ -15,6 +15,8 @@
 #
 import json
 import os
+import sys
+from pathlib import Path
 
 import pytest
 from living_doc_utilities.contracts import (
@@ -22,6 +24,7 @@ from living_doc_utilities.contracts import (
     doc_entities,
     doc_source,
     generator_ready,
+    registry,
     ui_test_catalog,
     ui_tests,
 )
@@ -29,6 +32,7 @@ from living_doc_utilities.contracts.compat import installed_utilities_version
 
 from generator_markdown.action_inputs import DocumentType
 from generator_markdown.source_reader import (
+    COLLECTOR_CONTRACT_NAMES,
     CONTRACT_NAMES,
     TOOLKIT_COMMANDS,
     SourceInputError,
@@ -50,30 +54,58 @@ def _run_in_tmp_path(monkeypatch, tmp_path):
 
 
 @pytest.fixture(name="unreadable_source")
-def _unreadable_source(tmp_path, write_sample):
-    if os.geteuid() == 0:
-        pytest.skip("root reads a file whatever its mode")
+def _unreadable_source(write_sample):
     source = write_sample(generator_ready.CONTRACT_ID, SOURCE)
     source.chmod(0o000)
+    if os.access(source, os.R_OK):
+        source.chmod(0o600)
+        pytest.skip("this user or file system reads a file whatever its mode")
     yield source
     # Readable again, so the `tmp_path` cleanup can remove it.
     source.chmod(0o600)
 
 
-def _rejection(document_type: DocumentType, source_path: str = SOURCE) -> str:
+@pytest.fixture(name="int_digit_limit")
+def _int_digit_limit():
+    if not hasattr(sys, "set_int_max_str_digits"):
+        pytest.skip("this Python has no integer digit limit")
+    previous = sys.get_int_max_str_digits()
+    sys.set_int_max_str_digits(4300)
+    yield 4300
+    sys.set_int_max_str_digits(previous)
+
+
+def _rejected(document_type: DocumentType, source_path: str = SOURCE) -> SourceInputError:
     with pytest.raises(SourceInputError) as error:
         read_source(document_type, source_path)
     message = str(error.value)
     # Every rejection is the one line the run fails with, naming the input.
     assert message.startswith("Input `source-path` is ")
     assert "\n" not in message
-    return message
+    return error.value
+
+
+def _rejection(document_type: DocumentType, source_path: str = SOURCE) -> str:
+    return str(_rejected(document_type, source_path))
+
+
+def _utilities_message(error: SourceInputError) -> str:
+    # The `utilities` wording is its own; the generator only keeps it, on one line.
+    return " ".join(str(error.__cause__).split())
 
 
 def test_every_document_type_reads_one_toolkit_contract_written_by_one_toolkit_command():
     # Assert
     assert set(CONTRACT_NAMES) == set(DocumentType)
     assert set(TOOLKIT_COMMANDS) == set(DocumentType)
+
+
+def test_every_contract_the_installed_utilities_knows_is_a_collector_output_or_a_document_types_input():
+    # Arrange
+    names = {contract_id.rsplit("-v", 1)[0] for contract_id in registry.CONTRACTS}
+
+    # Assert: a new contract would fall to the generic line, without a hint.
+    assert names == COLLECTOR_CONTRACT_NAMES | set(CONTRACT_NAMES.values())
 
 
 @pytest.mark.parametrize(
@@ -211,7 +243,19 @@ def test_an_empty_file_is_rejected_as_not_json(tmp_path):
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message.startswith("Input `source-path` is 'input.json', which is not JSON: ")
+    assert message == "Input `source-path` is 'input.json', which is not JSON: Expecting value at line 1, column 1."
+
+
+@pytest.mark.skipif(not hasattr(os, "mkfifo"), reason="no FIFO on this platform")
+def test_a_fifo_is_rejected_as_not_a_regular_file_without_reading_it(tmp_path):
+    # Arrange: reading a FIFO with no writer would block the run.
+    os.mkfifo(tmp_path / "pipe")
+
+    # Act
+    message = _rejection(DocumentType.TECHNICAL_PROJECT, "pipe")
+
+    # Assert
+    assert message == "Input `source-path` is 'pipe', not a regular file."
 
 
 def test_json_nested_past_the_recursion_limit_is_rejected_on_one_line(tmp_path):
@@ -223,21 +267,22 @@ def test_json_nested_past_the_recursion_limit_is_rejected_on_one_line(tmp_path):
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message.startswith("Input `source-path` is 'input.json', which cannot be loaded: ")
+    assert message == "Input `source-path` is 'input.json', which is nested too deeply to read."
 
 
-def test_an_integer_past_pythons_digit_limit_is_rejected_on_one_line(tmp_path):
+def test_an_integer_past_pythons_digit_limit_is_rejected_without_pythons_advice(tmp_path, int_digit_limit):
     # Arrange
     (tmp_path / SOURCE).write_text(
-        '{"schema_version": "generator-ready-v1.0.0", "n": ' + "1" * 5000 + "}", encoding="utf-8"
+        '{"schema_version": "generator-ready-v1.0.0", "n": ' + "1" * (int_digit_limit + 1) + "}", encoding="utf-8"
     )
 
     # Act
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
-    # Assert
+    # Assert: the action user cannot raise the limit, so the message does not tell them to.
     assert message.startswith("Input `source-path` is 'input.json', which cannot be loaded: ")
-    assert "integer string conversion" in message
+    assert "set_int_max_str_digits" not in message
+    assert message.endswith(".")
 
 
 def test_a_value_a_contract_model_cannot_report_is_rejected_on_one_printable_line(write_sample):
@@ -250,34 +295,25 @@ def test_a_value_a_contract_model_cannot_report_is_rejected_on_one_printable_lin
     # Act
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
-    # Assert
-    assert message.startswith("Input `source-path` is 'input.json', which cannot be loaded: ")
+    # Assert: whichever line names the cause, it can be printed.
+    assert message.startswith("Input `source-path` is 'input.json', ")
     assert message.isprintable()
 
 
-@pytest.mark.parametrize(
-    ("content", "detail"),
-    [
-        ("{}", "schema_version is missing or not a string"),
-        ("[]", "schema_version is missing or not a string"),
-        ('{"schema_version": 1}', "schema_version is missing or not a string"),
-        (
-            '{"schema_version": "generator-ready"}',
-            "schema_version 'generator-ready' does not match '<contract-name>-v<major>.<minor>.<patch>'",
-        ),
-    ],
-)
-def test_a_file_without_a_valid_schema_version_is_rejected_as_an_invalid_contract_id(tmp_path, content, detail):
+@pytest.mark.parametrize("content", ["{}", "[]", '{"schema_version": 1}', '{"schema_version": "generator-ready"}'])
+def test_a_file_without_a_valid_schema_version_is_rejected_as_an_invalid_contract_id(tmp_path, content):
     # Arrange
     (tmp_path / SOURCE).write_text(content, encoding="utf-8")
 
     # Act
-    message = _rejection(DocumentType.TECHNICAL_PROJECT)
+    error = _rejected(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message == (
-        f"Input `source-path` is 'input.json', not a valid `generator-ready` file: [INVALID_CONTRACT_ID] {detail}"
+    assert (
+        str(error)
+        == f"Input `source-path` is 'input.json', not a valid `generator-ready` file: {_utilities_message(error)}"
     )
+    assert _utilities_message(error).startswith("[INVALID_CONTRACT_ID] ")
 
 
 def test_a_schema_invalid_file_is_rejected_keeping_the_utilities_pin_hint(write_sample):
@@ -289,14 +325,35 @@ def test_a_schema_invalid_file_is_rejected_keeping_the_utilities_pin_hint(write_
     source.write_text(json.dumps(payload), encoding="utf-8")
 
     # Act
+    error = _rejected(DocumentType.TECHNICAL_PROJECT)
+
+    # Assert
+    assert (
+        str(error)
+        == f"Input `source-path` is 'input.json', not a valid `generator-ready` file: {_utilities_message(error)}"
+    )
+    assert _utilities_message(error).startswith("[SCHEMA_VALIDATION_FAILED] ")
+    assert str(error).endswith("align the pins")
+
+
+def test_a_long_rejection_is_cut_in_the_middle_keeping_the_utilities_pin_hint(write_sample):
+    # Arrange: the schema error quotes the 100 000-character value it rejects.
+    source = write_sample(generator_ready.CONTRACT_ID, SOURCE)
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload["document"] = "x" * 100_000
+    payload["metadata"]["producer"]["utilities_version"] = "0.0.1"
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    # Act
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message == (
+    assert message.startswith(
         "Input `source-path` is 'input.json', not a valid `generator-ready` file: [SCHEMA_VALIDATION_FAILED] "
-        "$: 'document' is a required property (file written by utilities '0.0.1', this is utilities "
-        f"'{installed_utilities_version()}'); the components run different utilities versions — align the pins"
     )
+    assert len(message) < 1200
+    assert " … " in message
+    assert message.endswith("align the pins")
 
 
 def test_a_file_failing_model_validation_is_rejected_on_one_line(write_sample):
@@ -307,42 +364,62 @@ def test_a_file_failing_model_validation_is_rejected_on_one_line(write_sample):
     source.write_text(json.dumps(payload), encoding="utf-8")
 
     # Act
-    with pytest.raises(SourceInputError) as error:
-        read_source(DocumentType.COVERAGE_MATRIX, SOURCE)
+    error = _rejected(DocumentType.COVERAGE_MATRIX)
 
     # Assert: pydantic's report spans lines; the message the run fails with does not.
-    assert "\n" in str(error.value.__cause__)
-    message = str(error.value)
-    assert message.startswith(
-        "Input `source-path` is 'input.json', not a valid `coverage-matrix` file: [SCHEMA_VALIDATION_FAILED] "
-        "coverage-matrix-v1.0.0: payload passed schema validation but failed model validation:"
+    assert "\n" in str(error.__cause__)
+    assert (
+        str(error)
+        == f"Input `source-path` is 'input.json', not a valid `coverage-matrix` file: {_utilities_message(error)}"
     )
-    assert "\n" not in message
+    assert _utilities_message(error).startswith("[SCHEMA_VALIDATION_FAILED] ")
 
 
 @pytest.mark.parametrize(
-    ("schema_version", "schema_file"),
+    "schema_version",
     [
-        ("generator-ready-v9.9.9", "'generator-ready-v9.9.9-schema.json'"),
+        "generator-ready-v9.9.9",
         # `utilities` accepts a trailing line break in `schema_version`; the quoted name keeps the message one line.
-        ("generator-ready-v1.0.0\n", "'generator-ready-v1.0.0\\n-schema.json'"),
+        "generator-ready-v1.0.0\n",
+        # A digit that is not ASCII matches `utilities`' pattern and names no schema file.
+        "generator-ready-v١.0.0",
+        # A schema file name past the file system's limit cannot be opened at all.
+        "generator-ready-v" + "1" * 300 + ".0.0",
     ],
 )
 def test_a_version_of_the_expected_contract_the_installed_utilities_lacks_is_rejected_with_the_pin_hint(
-    tmp_path, schema_version, schema_file
+    tmp_path, schema_version
 ):
     # Arrange
     (tmp_path / SOURCE).write_text(json.dumps({"schema_version": schema_version}), encoding="utf-8")
 
     # Act
+    error = _rejected(DocumentType.TECHNICAL_PROJECT)
+
+    # Assert
+    assert isinstance(error.__cause__, OSError)
+    schema_file = Path(os.fspath(error.__cause__.filename)).name
+    assert str(error) == (
+        f"Input `source-path` is 'input.json', a `generator-ready` version living-doc-utilities "
+        f"{installed_utilities_version()} ships no schema for ({schema_file!r}); check its `schema_version`, "
+        "or align the pins if the components run different utilities versions."
+    )
+
+
+def test_a_long_unshipped_version_is_cut_in_the_middle_keeping_the_pin_hint(tmp_path):
+    # Arrange
+    (tmp_path / SOURCE).write_text(
+        json.dumps({"schema_version": "generator-ready-v" + "1" * 100_000 + ".0.0"}), encoding="utf-8"
+    )
+
+    # Act
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message == (
-        f"Input `source-path` is 'input.json', a `generator-ready` version living-doc-utilities "
-        f"{installed_utilities_version()} ships no schema for ({schema_file}); "
-        "the components run different utilities versions — align the pins."
-    )
+    assert message.startswith("Input `source-path` is 'input.json', a `generator-ready` version living-doc-utilities ")
+    assert len(message) < 1300
+    assert " … " in message
+    assert message.endswith("or align the pins if the components run different utilities versions.")
 
 
 def test_an_unknown_contract_is_rejected_as_a_contract_mismatch(tmp_path):
@@ -350,13 +427,14 @@ def test_an_unknown_contract_is_rejected_as_a_contract_mismatch(tmp_path):
     (tmp_path / SOURCE).write_text('{"schema_version": "foo-v1.0.0"}', encoding="utf-8")
 
     # Act
-    message = _rejection(DocumentType.TECHNICAL_PROJECT)
+    error = _rejected(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message == (
-        "Input `source-path` is 'input.json', not a valid `generator-ready` file: "
-        "[CONTRACT_MISMATCH] expected one of ['generator-ready'], got 'foo'"
+    assert (
+        str(error)
+        == f"Input `source-path` is 'input.json', not a valid `generator-ready` file: {_utilities_message(error)}"
     )
+    assert _utilities_message(error).startswith("[CONTRACT_MISMATCH] ")
 
 
 @pytest.mark.parametrize(

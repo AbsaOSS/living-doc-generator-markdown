@@ -114,6 +114,7 @@ Repo specifics
   - One `::error::` line per `action.yml` failure, asserted in `tests/test_action_yml.py`.
 - High-risk areas
   - `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`.
+  - `source-path` reading in `generator_markdown/source_reader.py` — every failure one line naming the input.
   - The venv step of `action.yml` — the `unset` line, the interpreter identity, the install into `$RUNNER_TEMP/living-doc-generator-markdown-venv`, the import check — and the run step's `-E` and `env:`.
   - Any committed schema copy or local contract model — the contracts belong to `living-doc-utilities`.
   - Logging — avoid leaking tokens/headers; keep the whole generate path AI-free.
