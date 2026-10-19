@@ -1,0 +1,24 @@
+[project]
+name = "living-doc-generator-markdown"
+version = "0.1.0"
+description = "Render living documentation as plain Markdown files."
+requires-python = ">=3.10"
+
+[tool.black]
+line-length = 120
+target-version = ['py310']
+
+[tool.ruff]
+target-version = "py310"
+line-length = 120
+
+[tool.ruff.lint]
+select = ["E4", "E7", "E9", "F", "I", "B"]
+
+[tool.coverage.run]
+omit = ["tests/*"]
+
+[tool.mypy]
+check_untyped_defs = true
+python_version = "3.10"
+exclude = '^tests/'

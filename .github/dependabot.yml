@@ -18,3 +18,26 @@ updates:
       github-actions:
         patterns:
           - "*"
+
+  # One entry for both requirements files: the `pip` ecosystem scans `directory` for every requirements
+  # file in it, so `requirements.txt` and `requirements-dev.txt` are both covered here.
+  - package-ecosystem: "pip"
+    directory: "/"
+    target-branch: "master"
+    schedule:
+      interval: "weekly"
+      day: "sunday"
+    labels:
+      - "auto update"
+      - "infrastructure"
+      - "no RN"
+    open-pull-requests-limit: 3
+    commit-message:
+      prefix: "chore"
+      include: "scope"
+    allow:
+      - dependency-type: "direct"
+    groups:
+      python-dependencies:
+        patterns:
+          - "*"

@@ -1,0 +1,2 @@
+# Runtime only: the action installs this file. Development tools go in `requirements-dev.txt`.
+living-doc-utilities==0.6.0

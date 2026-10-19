@@ -6,7 +6,7 @@ A source-agnostic GitHub Action that will render the canonical Living Documentat
 
 ## Overview
 
-> **The Living Documentation pipeline runs AI-free.** Every step — collect → normalize → generate — is deterministic tooling (Python, JSON Schema validation, Jinja2/Markdown templates) with no LLM call anywhere in that path. [`AbsaOSS/agentic-toolkit`](https://github.com/AbsaOSS/agentic-toolkit) can accelerate the upstream *authoring* of GitHub Issues and `.feature` files, but it is never a runtime dependency of this pipeline: a human writing the same input by hand is a fully supported, identical path.
+> **The Living Documentation pipeline runs AI-free.** Every step — collect → normalize → generate — is deterministic tooling (Python, JSON Schema validation, Jinja2/Markdown templates) with no LLM call anywhere in that path. The agentic layer in [`living-doc` `agentic/`](https://github.com/AbsaOSS/living-doc/tree/master/agentic) can accelerate the upstream *authoring* of GitHub Issues and `.feature` files, but it is never a runtime dependency of this pipeline: a human writing the same input by hand is a fully supported, identical path.
 
 `living-doc-generator-markdown` is the **Markdown generator** — the final stage of the Living Documentation pipeline. It consumes the canonical dataset produced by [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) and emits plain Markdown files. The output is intended to be committed next to the code it documents and rendered by any existing Markdown renderer, so no additional publishing infrastructure is required.
 
@@ -14,9 +14,16 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 
 ## Status
 
-**Not yet implemented.** This repository is scaffolding only — there is no `action.yml`, source, or `DEVELOPER.md` yet. The generator is built in **Phase 4** of the roadmap, scaffolded from the canonical action-repo conventions established in Phase 0: see [Roadmap → Phase 4 — Build `generator-markdown` against the same canonical contract](https://github.com/AbsaOSS/living-doc/blob/master/docs/specs/roadmap.md#phase-4--build-generator-markdown-against-the-same-canonical-contract).
+**In development: the action validates its inputs and does not render yet.** [`action.yml`](./action.yml) takes the four inputs the generator keeps — `document-type` (`technical-project`, `ui-test-catalog` or `coverage-matrix`), `source-path`, `output-path` (a directory, default `./output/generator-markdown`) and `document-title` — and runs in a venv of its own, built from the Python on `PATH`.
 
-Treat any inputs/outputs described elsewhere as directional, not authoritative, until Phase 4 lands.
+- A missing `document-type` or `source-path`, or an unknown `document-type`, fails the run with one line naming the input.
+- Valid inputs fail the run too, with `Rendering is not implemented yet: …`, so no pipeline mistakes this version for one that wrote a document.
+
+Do not add this action to a pipeline yet.
+
+## Developer Guide
+
+Setup, quality gates, a debug run and the action's venv rules: [DEVELOPER.md](./DEVELOPER.md).
 
 ## Contribution Guidelines
 

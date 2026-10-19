@@ -1,0 +1,65 @@
+name: 'Living Documentation Generator for Markdown'
+description: 'Render living documentation as plain Markdown files. In development: validates its inputs and renders nothing yet.'
+inputs:
+  document-type:
+    description: 'Document to render: `technical-project`, `ui-test-catalog` or `coverage-matrix`.'
+    required: true
+  source-path:
+    description: 'Path to the input JSON file the document is rendered from.'
+    required: true
+  output-path:
+    description: 'Output directory; the document and its run report are written into it.'
+    required: false
+    default: './output/generator-markdown'
+  document-title:
+    description: 'Title of the document; optional.'
+    required: false
+    default: ''
+
+outputs:
+  output-path:
+    description: 'Resolved absolute output directory.'
+    value: ${{ steps.liv-doc-generator.outputs.output-path }}
+
+branding:
+  icon: 'book-open'
+  color: 'green'
+
+runs:
+  using: 'composite'
+  steps:
+    - name: Check Python and create the generator's venv
+      id: venv
+      shell: bash
+      run: |
+        unset PIP_TARGET PIP_PREFIX PIP_USER PIP_ROOT PIP_PYTHON PYTHONPATH
+        PY="$(command -v python3 || command -v python || true)"
+        if [ -z "$PY" ] || ! "$PY" -c 'import sys; sys.exit(0 if sys.version_info >= (3, 10) else 1)'; then
+          echo "::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step."; exit 1
+        fi
+        VENV="$RUNNER_TEMP/living-doc-generator-markdown-venv"
+        IDENTITY='import sys; print(sys.base_prefix, sys.version_info[:3])'
+        WANT="$("$PY" -c "$IDENTITY")"
+        HAVE=""
+        if [ -x "$VENV/bin/python" ]; then
+          HAVE="$("$VENV/bin/python" -c "$IDENTITY" 2>/dev/null || true)"
+        fi
+        if [ "$HAVE" != "$WANT" ]; then
+          rm -rf "$VENV"
+          "$PY" -m venv "$VENV" || { echo "::error::living-doc-generator-markdown: '$PY -m venv' failed; install the venv module."; exit 1; }
+        fi
+        "$VENV/bin/pip" install -r "${{ github.action_path }}/requirements.txt"
+        (cd "${{ github.action_path }}" && "$VENV/bin/python" -E -c 'import living_doc_utilities, generator_markdown') || {
+          echo "::error::living-doc-generator-markdown's requirements did not land in $VENV; check the runner's pip configuration for a 'target' or 'prefix' setting that redirects them."; exit 1; }
+        echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"
+
+    - name: Run Living Documentation Generator for Markdown
+      id: liv-doc-generator
+      env:
+        INPUT_DOCUMENT_TYPE: ${{ inputs.document-type }}
+        INPUT_SOURCE_PATH: ${{ inputs.source-path }}
+        INPUT_OUTPUT_PATH: ${{ inputs.output-path }}
+        INPUT_DOCUMENT_TITLE: ${{ inputs.document-title }}
+      run: |
+        "${{ steps.venv.outputs.python }}" -E "${{ github.action_path }}/main.py"
+      shell: bash
