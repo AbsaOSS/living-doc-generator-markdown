@@ -36,7 +36,7 @@ samples) and reads one only with `living_doc_utilities.contracts.io.read_artifac
 | A relative path that must resolve | `monkeypatch.chdir(tmp_path)` (inside `valid_inputs`), then compare with `os.fspath(tmp_path / ...)` | `tests/generator_markdown/test_action_inputs.py::test_valid_inputs_are_read_typed_and_the_output_path_resolved` |
 | `main.run()` exit code + logs | `pytest.raises(SystemExit)` for the exit code; `caplog` for the records, filtered to `ERROR` to assert the one error line | `tests/test_main.py` |
 | The entry point as the action runs it | `subprocess.run([sys.executable, "-E", "main.py"], env=...)` with only the run step's `INPUT_*`, in `tmp_path` | `tests/test_main.py::test_the_entry_point_run_as_the_action_runs_it_prints_one_error_line` |
-| `action.yml` promises | `yaml.safe_load` of `action.yml` for inputs, outputs and step `env:`; comment-stripped lines for the shell rules | `tests/test_action_yml.py` |
+| `action.yml` promises | `yaml.safe_load` of `action.yml` for inputs, outputs and step `env:`; the venv step run under `bash` with a fake `python3` first on `PATH` (`_run_venv_step`) | `tests/test_action_yml.py` |
 | A planted requirements file | write it under `tmp_path` and pass it to `tools.check_runtime_requirements.main` | `tests/test_runtime_requirements.py` |
 
 ## Output

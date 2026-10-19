@@ -57,7 +57,7 @@ Contract-sensitive outputs:
 - Must keep the Action output key `output-path` stable — `action.yml` declares it from the run step `liv-doc-generator`; the action does not set it yet, as no run succeeds.
 - Must keep the input error messages stable — `` Input `document-type` is required; valid types: technical-project, ui-test-catalog, coverage-matrix. ``, `` Input `document-type` is '<value>', not a valid type; valid types: … ``, `` Input `source-path` is required: the path to the input JSON file. `` — tests assert exact text.
 - Must keep `RENDERING_NOT_IMPLEMENTED_MESSAGE` (`Rendering is not implemented yet: living-doc-generator-markdown validated its inputs and wrote no document.`) until rendering replaces it.
-- Must keep the `action.yml` one-line errors stable — `::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step.` and the import-check error; `tests/test_action_yml.py` asserts them.
+- Must keep every `action.yml` failure to one `::error::` line — `tests/test_action_yml.py` runs the venv step and asserts it.
 - Must keep exit-code behaviour stable — `1` on every failure; no run exits `0` yet. There is no `2`–`5` taxonomy in this repo.
 - Must keep the `"Liv-Doc generator for Markdown - ..."` log strings stable — tests assert on them.
 

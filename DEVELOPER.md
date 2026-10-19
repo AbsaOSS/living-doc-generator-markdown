@@ -82,5 +82,5 @@ python3 main.py
 - `main.py` runs with `-E`, so a caller's `PYTHONPATH` cannot shadow the venv. Every input reaches it through the
   run step's `env:`.
 - Linux runners only: the venv's POSIX `bin/` layout is assumed.
-- `tests/test_action_yml.py` pins each rule in `action.yml`. `integration_test.yml` shows the reuse, the rebuild on
-  an interpreter change, and the rejection of Python 3.9.
+- `tests/test_action_yml.py` runs the venv step against a fake interpreter. `integration_test.yml` shows the reuse,
+  the rebuild on an interpreter change, and the rejection of Python 3.9 on real ones.

@@ -111,7 +111,7 @@ Repo specifics
   - The four inputs `document-type`, `source-path`, `output-path`, `document-title` (named as `living-doc-generator-pdf` names them); Action output key `output-path`; default output directory `./output/generator-markdown`.
   - Exit codes — `1` on every failure; no run exits `0` until rendering writes a document; no `2`–`5` taxonomy.
   - The `ActionInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE`, asserted in `tests/generator_markdown/test_action_inputs.py` and `tests/test_main.py`.
-  - The `action.yml` one-line errors, asserted in `tests/test_action_yml.py`.
+  - One `::error::` line per `action.yml` failure, asserted in `tests/test_action_yml.py`.
 - High-risk areas
   - `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`.
   - The venv step of `action.yml` — the `unset` line, the interpreter identity, the install into `$RUNNER_TEMP/living-doc-generator-markdown-venv`, the import check — and the run step's `-E` and `env:`.

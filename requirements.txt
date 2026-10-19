@@ -1,4 +1,2 @@
-# Runtime dependencies only - what `main.py` and `generator_markdown/` import. The action installs this file
-# into its own venv (see `action.yml`). Development and test tools live in `requirements-dev.txt`;
-# `make qa` fails when a test, lint or type tool appears here (`tools/check_runtime_requirements.py`).
+# Runtime only: the action installs this file. Development tools go in `requirements-dev.txt`.
 living-doc-utilities==0.6.0

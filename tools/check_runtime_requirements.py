@@ -15,9 +15,7 @@
 #
 
 """
-The guard that keeps `requirements.txt` a runtime-only file: the action installs it into its own venv on
-every run, so a test, lint or type tool named there is downloaded on every run of every caller. Those
-tools belong in `requirements-dev.txt`. Run by `make qa`; exits 1 and names each offender.
+The guard that keeps `requirements.txt` free of test, lint and type tools; run by `make runtime-requirements`.
 """
 
 import re
@@ -27,7 +25,6 @@ from pathlib import Path
 REPO_ROOT = Path(__file__).resolve().parents[1]
 RUNTIME_REQUIREMENTS = REPO_ROOT / "requirements.txt"
 
-# Names no runtime requirements file may carry, each a test runner, linter, formatter or type checker.
 DENIED_NAMES = frozenset(
     {
         "bandit",
@@ -45,7 +42,6 @@ DENIED_NAMES = frozenset(
         "pytype",
         "ruff",
         "tox",
-        # Test helpers: only a test suite has a reason to fake data, time or HTTP.
         "faker",
         "freezegun",
         "hypothesis",
@@ -53,15 +49,9 @@ DENIED_NAMES = frozenset(
     }
 )
 
-# Families of the same kind: a pytest plugin, a type-stub distribution, or any other mock helper.
-DENIED_PREFIXES = ("pytest-", "pytest_", "types-", "types_", "mock", "flake8-")
+DENIED_PREFIXES = ("pytest-", "types-", "mock", "flake8-")
 
-# A requirement line's distribution name: everything before the first extra, marker, version or URL separator.
-_NAME_RE = re.compile(r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)")
-
-# A whole plain PEP 508 requirement and nothing else: a name, optional extras, an optional version specifier
-# and an optional environment marker. Anything that does not match in full - an `-r` include, a bare `--flag`,
-# a `git+`/`https://` reference, a local path or wheel - names no distribution this check can judge.
+# A plain PEP 508 requirement. An include, a flag, a VCS or URL reference or a local path does not match.
 _REQUIREMENT_RE = re.compile(
     r"^(?P<name>[A-Za-z0-9][A-Za-z0-9._-]*)"
     r"(?:\[[A-Za-z0-9._,-]+\])?"
@@ -69,41 +59,20 @@ _REQUIREMENT_RE = re.compile(
     r"(?:\s*;.*)?$"
 )
 
-
-# PEP 503: a run of `-`, `_` or `.` is one `-`, so `pytest.cov`, `pytest_cov` and `pytest-cov` are the same
-# distribution to pip - and must be the same name to the deny list.
 _SEPARATOR_RUN_RE = re.compile(r"[-_.]+")
 
 
 def _normalize(name: str) -> str:
-    """The distribution name lowercased, with every run of `-`, `_` or `.` folded to one `-` (PEP 503)."""
+    """The distribution name as PEP 503 compares it."""
     return _SEPARATOR_RUN_RE.sub("-", name).lower()
-
-
-def requirement_name(line: str) -> str:
-    """
-    The distribution a requirement line names, lowercased with `_` folded to `-` (PEP 503).
-
-    @param line: One line of a requirements file, already stripped of its comment.
-    @return: The distribution name, or an empty string for a line that names none (`-r`, `--flag`, blank).
-    """
-    name_m = _NAME_RE.match(line.strip())
-    return _normalize(name_m.group("name")) if name_m else ""
 
 
 def denied_requirements(requirements_path: Path) -> list[str]:
     """
-    Every line of a requirements file that a runtime-only file may not carry.
+    Every development tool a requirements file names, and every line that is not a plain requirement.
 
-    A named test, lint or type tool is one case. The other is a line this check cannot read as a plain
-    PEP 508 requirement - an `-r`/`--requirement` include, a VCS or URL reference, a local path or wheel.
-    Those are reported too rather than skipped: an include pulls in whatever the other file names (and
-    `requirements-dev.txt` includes this one, so inverting the two is an easy mistake), and `git+...` or
-    `./dist/x.whl` hides the distribution's real name from the deny list. A runtime file naming its own
-    pins outright never trips this.
-
-    @param requirements_path: The runtime requirements file to read.
-    @return: The offending names, or the whole offending line where no name can be read, in file order.
+    @param requirements_path: The requirements file to read.
+    @return: The offending names, or the whole line where no name can be read, in file order.
     """
     denied = []
     for raw in requirements_path.read_text(encoding="utf-8").splitlines():
@@ -112,7 +81,6 @@ def denied_requirements(requirements_path: Path) -> list[str]:
             continue
         plain = _REQUIREMENT_RE.match(line)
         if plain is None:
-            # Nothing a deny list can be applied to: report the line and let a human judge it.
             denied.append(line)
             continue
         name = _normalize(plain.group("name"))
@@ -125,9 +93,8 @@ def main(requirements_path: Path = RUNTIME_REQUIREMENTS) -> int:
     """
     Report every denied requirement of the runtime requirements file.
 
-    @param requirements_path: The file to check; defaults to this repository's `requirements.txt`. A test
-                              passes its own so the reporting path is exercised, not only the clean one.
-    @return: The process exit code: 0 when the file is runtime-only, 1 otherwise.
+    @param requirements_path: The file to check; defaults to `requirements.txt`.
+    @return: 0 when the file is runtime-only, 1 otherwise.
     """
     denied = denied_requirements(requirements_path)
     if not denied:

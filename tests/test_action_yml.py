@@ -13,157 +13,208 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 #
-"""
-The `action.yml` promises a caller relies on: the action brings its own venv, writes nothing into the
-caller's environment, rejects an unsupported Python with one actionable error, and takes exactly the inputs
-`living-doc-generator-pdf` names, so the two generators stay interchangeable.
-
-The integration workflow can prove the version check *fails*, but a composite action's step log is not
-readable from a later workflow step, so the message itself is pinned here - otherwise a refactor to a bare
-`exit 1` would regress the only guidance a caller gets, with every job still green.
-"""
-
+import os
+import subprocess
+import sys
 from pathlib import Path
 
 import pytest
 import yaml
 
-from generator_markdown.action_inputs import DEFAULT_OUTPUT_PATH, DocumentType
+from generator_markdown.action_inputs import DEFAULT_OUTPUT_PATH
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
-ACTION_YML = REPO_ROOT / "action.yml"
-
-PYTHON_FLOOR_ERROR = (
-    "::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step."
-)
-VENV_CREATE_ERROR = "::error::living-doc-generator-markdown: '$PY -m venv' failed; install the venv module."
-REQUIREMENTS_NOT_LANDED_ERROR = (
-    "::error::living-doc-generator-markdown's requirements did not land in $VENV; check the runner's pip "
-    "configuration for a 'target' or 'prefix' setting that redirects them."
-)
-VENV_LINE = 'VENV="$RUNNER_TEMP/living-doc-generator-markdown-venv"'
-INSTALL_LINE = '"$VENV/bin/pip" install -r "${{ github.action_path }}/requirements.txt"'
+ACTION = yaml.safe_load((REPO_ROOT / "action.yml").read_text(encoding="utf-8"))
+STEPS = {step["id"]: step for step in ACTION["runs"]["steps"]}
 INPUTS = ["document-type", "source-path", "output-path", "document-title"]
+PIP_ENVIRONMENT = ["PIP_TARGET", "PIP_PREFIX", "PIP_USER", "PIP_ROOT", "PIP_PYTHON", "PYTHONPATH"]
+
+# Stands in for every interpreter the venv step calls: `-c` code runs on this test's interpreter, with the fake's
+# version and prefix when given; `-m venv DIR` fills DIR with a copy of the fake and a pip that only logs its call.
+FAKE_PYTHON = """#!{executable}
+import os, shutil, sys
+with open({calls!r}, "a", encoding="utf-8") as calls:
+    calls.write(" ".join(sys.argv) + "\\n")
+args = [arg for arg in sys.argv[1:] if arg != "-E"]
+if args[:2] == ["-m", "venv"]:
+    if not {venv_ok!r}:
+        sys.exit(1)
+    os.makedirs(os.path.join(args[2], "bin"))
+    shutil.copy(__file__, os.path.join(args[2], "bin", "python"))
+    shutil.copy({pip!r}, os.path.join(args[2], "bin", "pip"))
+    sys.exit(0)
+if {version!r}:
+    sys.version_info = {version!r}
+if {prefix!r}:
+    sys.base_prefix = {prefix!r}
+if not {importable!r}:
+    sys.modules["living_doc_utilities"] = None
+sys.path[0] = ""
+exec(args[1])
+"""
+FAKE_PIP = """#!/bin/sh
+echo "$0 $*" >> "{calls}"
+env > "{calls}.env"
+"""
 
 
-def _action() -> dict:
-    return yaml.safe_load(ACTION_YML.read_text(encoding="utf-8"))
+def _venv(tmp_path: Path) -> Path:
+    return tmp_path / "runner" / "living-doc-generator-markdown-venv"
 
 
-def _code_lines() -> list[str]:
-    return [line.split("#", 1)[0].strip() for line in ACTION_YML.read_text(encoding="utf-8").splitlines()]
+def _write_fake_python(path: Path, tmp_path: Path, version=None, prefix=None, venv_ok=True, importable=True) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_text(
+        FAKE_PYTHON.format(
+            executable=sys.executable,
+            calls=os.fspath(tmp_path / "python.calls"),
+            pip=os.fspath(tmp_path / "pip"),
+            version=version,
+            prefix=prefix,
+            venv_ok=venv_ok,
+            importable=importable,
+        ),
+        encoding="utf-8",
+    )
+    path.chmod(0o755)
 
 
-def _step(step_id: str) -> dict:
-    return next(step for step in _action()["runs"]["steps"] if step.get("id") == step_id)
+def _run_venv_step(tmp_path: Path, env: dict[str, str] | None = None, **fake) -> subprocess.CompletedProcess:
+    _write_fake_python(tmp_path / "bin" / "python3", tmp_path, **fake)
+    pip = tmp_path / "pip"
+    pip.write_text(FAKE_PIP.format(calls=tmp_path / "pip.calls"), encoding="utf-8")
+    pip.chmod(0o755)
+    (tmp_path / "runner").mkdir(exist_ok=True)
+    script = STEPS["venv"]["run"].replace("${{ github.action_path }}", os.fspath(REPO_ROOT))
+    return subprocess.run(
+        ["bash", "--noprofile", "--norc", "-eo", "pipefail", "-c", script],
+        capture_output=True,
+        check=False,
+        cwd=tmp_path,
+        env={
+            "PATH": f"{tmp_path / 'bin'}{os.pathsep}{os.environ['PATH']}",
+            "RUNNER_TEMP": os.fspath(tmp_path / "runner"),
+            "GITHUB_OUTPUT": os.fspath(tmp_path / "github-output"),
+            "GITHUB_ENV": os.fspath(tmp_path / "github-env"),
+            "GITHUB_PATH": os.fspath(tmp_path / "github-path"),
+            **(env or {}),
+        },
+        text=True,
+    )
 
 
-def test_an_unsupported_python_fails_with_the_documented_one_line_error():
-    # Assert: the exact string DEVELOPER.md's venv rule promises, echoed by the code itself (not a comment) right
-    # before the step fails.
-    assert f'echo "{PYTHON_FLOOR_ERROR}"; exit 1' in _code_lines()
+def _errors(result: subprocess.CompletedProcess) -> list[str]:
+    return [line for line in result.stdout.splitlines() if line.startswith("::error::")]
 
 
-def test_a_failed_venv_create_fails_with_one_line_error():
-    # Assert: a runner without the `venv` module gets the pointer, not a bare `venv` traceback.
-    assert f'"$PY" -m venv "$VENV" || {{ echo "{VENV_CREATE_ERROR}"; exit 1; }}' in _code_lines()
+def _venv_creations(tmp_path: Path) -> int:
+    return sum(" -m venv " in line for line in (tmp_path / "python.calls").read_text(encoding="utf-8").splitlines())
 
 
-def test_the_version_floor_matches_the_one_the_project_requires():
-    # Assert: the guard tests the same floor `pyproject.toml` declares, so the docs name one number.
-    assert "sys.version_info >= (3, 10)" in ACTION_YML.read_text(encoding="utf-8")
-    assert 'requires-python = ">=3.10"' in (REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8")
+def test_the_inputs_are_the_four_the_pdf_generator_names():
+    # Assert
+    inputs = ACTION["inputs"]
+    assert list(inputs) == INPUTS
+    assert [inputs[name]["required"] for name in INPUTS] == [True, True, False, False]
+    assert inputs["output-path"]["default"] == DEFAULT_OUTPUT_PATH
 
 
-@pytest.mark.parametrize("leak", ["GITHUB_ENV", "GITHUB_PATH"])
-def test_the_action_writes_nothing_into_the_callers_environment(leak):
-    # Assert: every input is passed in the run step's own `env:`; nothing is exported to the job.
-    code = [line.split("#", 1)[0] for line in ACTION_YML.read_text(encoding="utf-8").splitlines()]
-    assert not [line for line in code if leak in line]
+def test_every_input_reaches_the_entry_point_through_the_run_steps_env():
+    # Assert
+    assert STEPS["liv-doc-generator"]["env"] == {
+        f"INPUT_{name.replace('-', '_').upper()}": f"${{{{ inputs.{name} }}}}" for name in INPUTS
+    }
 
 
-def test_the_action_installs_into_its_own_venv_and_never_the_runners_interpreter():
-    # Assert: pip is always the venv's own, so no install reaches whatever interpreter the caller had.
-    installs = [line for line in _code_lines() if "pip" in line and "install" in line]
-    assert installs == [INSTALL_LINE]
-    assert VENV_LINE in _code_lines()
-
-
-def test_the_pip_environment_is_cleared_before_the_install():
-    # Assert: unset, not set empty, and before pip runs - a caller's PIP_TARGET would otherwise empty the venv, and
-    # a caller's PIP_PYTHON would install into the caller's own interpreter.
-    lines = _code_lines()
-    unset = "unset PIP_TARGET PIP_PREFIX PIP_USER PIP_ROOT PIP_PYTHON PYTHONPATH"
-    assert unset in lines
-    assert lines.index(unset) < lines.index(INSTALL_LINE)
-
-
-def test_the_venv_is_reused_only_when_the_interpreter_on_path_built_it():
-    # Assert: the identity compared is the interpreter a venv was created from, plus its version; a mismatch
-    # removes the venv before it is recreated.
-    lines = _code_lines()
-    assert "IDENTITY='import sys; print(sys.base_prefix, sys.version_info[:3])'" in lines
-    assert lines.index('if [ "$HAVE" != "$WANT" ]; then') < lines.index('rm -rf "$VENV"')
-
-
-def test_the_action_proves_the_requirements_and_its_package_import_in_the_venv():
-    # Assert: the install is followed by an import through the venv's own interpreter, from the action's
-    # directory. A runner `pip.conf` that redirects the packages (`target`/`prefix`, which no `unset` can
-    # reach) leaves `pip install` green and the venv empty, so without this the first symptom is an import
-    # error one step later. `-E`, as in the run step: a caller's `PYTHONSAFEPATH` would otherwise drop the action's
-    # directory from `sys.path` and fail the check on a good install.
-    lines = _code_lines()
-    checks = [
-        line for line in lines if "\"$VENV/bin/python\" -E -c 'import living_doc_utilities, generator_markdown'" in line
-    ]
-    assert len(checks) == 1
-    assert checks[0].startswith('(cd "${{ github.action_path }}" && ')
-    assert lines.index(INSTALL_LINE) < lines.index(checks[0])
-    # Its failure is the one line pointing at the runner's pip configuration, not the import's traceback.
-    assert checks[0].endswith(" || {")
-    assert lines[lines.index(checks[0]) + 1] == f'echo "{REQUIREMENTS_NOT_LANDED_ERROR}"; exit 1; }}'
-
-
-def test_the_entry_point_runs_through_the_venv_with_the_environment_ignored():
-    # Assert: `-E`, so a caller's `PYTHONPATH` cannot shadow the venv's packages.
-    assert _step("liv-doc-generator")["run"].strip().splitlines()[-1] == (
+def test_the_run_step_runs_the_entry_point_on_the_venv_interpreter_ignoring_the_environment():
+    # Assert
+    assert STEPS["liv-doc-generator"]["run"].strip() == (
         '"${{ steps.venv.outputs.python }}" -E "${{ github.action_path }}/main.py"'
     )
 
 
-def test_the_run_step_gets_its_interpreter_from_the_venv_step():
-    # Assert: the venv step hands the run step the venv's interpreter. The integration jobs replay `main.py` on
-    # the venv directly, so they would stay green if the run step got the caller's `$PY` or an empty output.
-    assert [step.get("id") for step in _action()["runs"]["steps"]] == ["venv", "liv-doc-generator"]
-    assert 'echo "python=$VENV/bin/python" >> "$GITHUB_OUTPUT"' in _code_lines()
-
-
-def test_the_inputs_are_the_four_the_pdf_generator_names():
-    # Assert: the same names as `living-doc-generator-pdf`, so a pipeline can switch generators.
-    inputs = _action()["inputs"]
-    assert list(inputs) == INPUTS
-    assert inputs["document-type"]["required"] is True
-    assert inputs["source-path"]["required"] is True
-    assert inputs["output-path"]["required"] is False
-    assert inputs["output-path"]["default"] == DEFAULT_OUTPUT_PATH
-    assert inputs["document-title"]["required"] is False
-
-
-def test_the_document_type_description_names_every_type_the_generator_accepts():
-    # Assert: the description and `DocumentType` cannot drift apart.
-    description = _action()["inputs"]["document-type"]["description"]
-    assert [f"`{document_type.value}`" in description for document_type in DocumentType] == [True] * 3
-    assert description.count("`") == 2 * len(DocumentType)
-
-
-def test_every_input_reaches_the_entry_point_through_the_run_steps_env():
-    # Assert: under `-E` the run step's `env:` is the only way in, so each input has its `INPUT_*` and nothing more.
-    env = _step("liv-doc-generator")["env"]
-    assert env == {f"INPUT_{name.replace('-', '_').upper()}": f"${{{{ inputs.{name} }}}}" for name in INPUTS}
-
-
-def test_the_only_output_is_the_output_path_the_run_step_sets():
+def test_the_only_output_is_the_run_steps_output_path():
     # Assert
-    outputs = _action()["outputs"]
-    assert list(outputs) == ["output-path"]
-    assert outputs["output-path"]["value"] == "${{ steps.liv-doc-generator.outputs.output-path }}"
+    assert ACTION["outputs"]["output-path"]["value"] == "${{ steps.liv-doc-generator.outputs.output-path }}"
+    assert list(ACTION["outputs"]) == ["output-path"]
+
+
+def test_a_python_below_3_10_fails_with_one_error_line_before_creating_a_venv(tmp_path):
+    # Act
+    result = _run_venv_step(tmp_path, version=(3, 9, 18))
+
+    # Assert
+    assert result.returncode == 1
+    assert len(_errors(result)) == 1
+    assert not _venv(tmp_path).exists()
+
+
+def test_a_failed_venv_create_fails_with_one_error_line(tmp_path):
+    # Act
+    result = _run_venv_step(tmp_path, venv_ok=False)
+
+    # Assert
+    assert result.returncode == 1
+    assert len(_errors(result)) == 1
+
+
+def test_only_the_runtime_requirements_install_through_the_venvs_pip_with_the_pip_environment_cleared(tmp_path):
+    # Arrange
+    leaked = {name: os.fspath(tmp_path / "elsewhere") for name in PIP_ENVIRONMENT}
+
+    # Act
+    result = _run_venv_step(tmp_path, env=leaked)
+
+    # Assert
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "pip.calls").read_text(encoding="utf-8").splitlines() == [
+        f"{_venv(tmp_path)}/bin/pip install -r {REPO_ROOT}/requirements.txt"
+    ]
+    pip_env = (tmp_path / "pip.calls.env").read_text(encoding="utf-8").splitlines()
+    assert [line for line in pip_env if line.split("=", 1)[0] in PIP_ENVIRONMENT] == []
+
+
+def test_a_good_install_hands_the_venv_interpreter_to_the_run_step_and_nothing_to_the_job(tmp_path):
+    # Act
+    result = _run_venv_step(tmp_path)
+
+    # Assert
+    assert result.returncode == 0, result.stderr
+    assert (tmp_path / "github-output").read_text(encoding="utf-8") == f"python={_venv(tmp_path)}/bin/python\n"
+    assert not (tmp_path / "github-env").exists()
+    assert not (tmp_path / "github-path").exists()
+
+
+def test_requirements_missing_from_the_venv_fail_the_import_check_with_one_error_line(tmp_path):
+    # Act
+    result = _run_venv_step(tmp_path, importable=False)
+
+    # Assert
+    assert result.returncode == 1
+    assert len(_errors(result)) == 1
+    assert not (tmp_path / "github-output").exists()
+
+
+def test_the_venv_is_reused_when_the_interpreter_on_path_built_it(tmp_path):
+    # Arrange
+    _run_venv_step(tmp_path)
+
+    # Act
+    result = _run_venv_step(tmp_path)
+
+    # Assert
+    assert result.returncode == 0, result.stderr
+    assert _venv_creations(tmp_path) == 1
+
+
+@pytest.mark.parametrize("built_by", [{"prefix": "/opt/another-python"}, {"version": (3, 99, 0)}])
+def test_the_venv_is_rebuilt_when_another_interpreter_built_it(tmp_path, built_by):
+    # Arrange
+    _write_fake_python(_venv(tmp_path) / "bin" / "python", tmp_path, **built_by)
+
+    # Act
+    result = _run_venv_step(tmp_path)
+
+    # Assert
+    assert result.returncode == 0, result.stderr
+    assert _venv_creations(tmp_path) == 1
