@@ -16,7 +16,8 @@
 
 """
 This module contains the main script for the Living Documentation Generator for Markdown GH Action.
-It sets up logging and validates the action inputs. Rendering is not implemented yet, so every run fails.
+It sets up logging, validates the action inputs and reads the input file. Rendering is not implemented yet, so
+every run fails.
 """
 
 import logging
@@ -25,6 +26,7 @@ import sys
 from living_doc_utilities.logging_config import setup_logging
 
 from generator_markdown.action_inputs import ActionInputError, ActionInputs
+from generator_markdown.source_reader import SourceInputError, read_source
 
 # A run with valid inputs still fails, so no pipeline mistakes this version for one that wrote a document.
 RENDERING_NOT_IMPLEMENTED_MESSAGE = (
@@ -36,9 +38,10 @@ logger = logging.getLogger(__name__)
 
 def run() -> None:
     """
-    Run the Living Documentation (Liv-Doc) Generator for Markdown: validate the inputs, then fail.
+    Run the Living Documentation (Liv-Doc) Generator for Markdown: validate the inputs, read the input file, then fail.
 
-    @return: None; the run ends with exit code 1, on an invalid input or because rendering is not implemented yet.
+    @return: None; the run ends with exit code 1, on an invalid input or input file, or because rendering is not
+        implemented yet.
     """
     setup_logging()
     logger.info("Liv-Doc generator for Markdown - starting.")
@@ -55,6 +58,14 @@ def run() -> None:
         inputs.source_path,
         inputs.output_path,
     )
+
+    try:
+        document = read_source(inputs.document_type, inputs.source_path)
+    except SourceInputError as error:
+        logger.error("%s", error)
+        sys.exit(1)
+
+    logger.info("Liv-Doc generator for Markdown - input read: `%s`.", document.schema_version)
     logger.error("%s", RENDERING_NOT_IMPLEMENTED_MESSAGE)
     sys.exit(1)
 

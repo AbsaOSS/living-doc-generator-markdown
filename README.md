@@ -14,10 +14,20 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 
 ## Status
 
-**In development: the action validates its inputs and does not render yet.** [`action.yml`](./action.yml) takes the four inputs the generator keeps — `document-type` (`technical-project`, `ui-test-catalog` or `coverage-matrix`), `source-path`, `output-path` (a directory, default `./output/generator-markdown`) and `document-title` — and runs in a venv of its own, built from the Python on `PATH`.
+**In development: the action reads its input and does not render yet.** [`action.yml`](./action.yml) takes five inputs — `document-type` (`technical-project`, `ui-test-catalog` or `coverage-matrix`), `source-path`, `output-path` (a directory, default `./output/generator-markdown`), `document-title` and `verbose-logging` (`true` for DEBUG logs, default `false`) — and runs in a venv of its own, built from the Python on `PATH`.
+
+`source-path` is the one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output its document type renders, read through the [`living-doc-utilities`](https://github.com/AbsaOSS/living-doc-utilities) contracts:
+
+| `document-type` | `source-path` | Written by the `living-doc-toolkit` command |
+|---|---|---|
+| `technical-project` | `generator-ready.json` | `normalize-docs` |
+| `ui-test-catalog` | `ui-test-catalog.json` | `normalize-tests` |
+| `coverage-matrix` | `coverage-matrix.json` | `coverage-matrix` |
 
 - A missing `document-type` or `source-path`, or an unknown `document-type`, fails the run with one line naming the input.
-- Valid inputs fail the run too, with `Rendering is not implemented yet: …`, so no pipeline mistakes this version for one that wrote a document.
+- A `source-path` that is missing, unreadable or not JSON, or a file its contract rejects, fails the run with one line naming `source-path`.
+- A collector output (`doc-source`, `doc-entities`, `ui-tests`) fails with one line naming the `living-doc-toolkit` command that writes the document type's input; another document type's file fails naming its `document-type`.
+- A valid input fails the run too, with `Rendering is not implemented yet: …`, so no pipeline mistakes this version for one that wrote a document.
 
 Do not add this action to a pipeline yet.
 

@@ -51,13 +51,11 @@ jobs:
         run: |
           set -euo pipefail
 
-          # A manual run is a request to re-check the branch, so it runs every gate whatever its last commit touched.
           if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
             echo "python_changed=true" >> "$GITHUB_OUTPUT"
             exit 0
           fi
 
-          # A rename lists its old path too, so moving a file out of the filtered set still runs the tests.
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             changed_files=$(gh api \
               "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
@@ -66,16 +64,12 @@ jobs:
             changed_files=$(git diff --name-only --no-renames "${{ github.sha }}~1" "${{ github.sha }}")
           fi
 
-          # `action.yml` is in the list because tests/test_action_yml.py reads it: an `action.yml`-only change
-          # still runs the tests.
           if echo "$changed_files" | grep -E '(\.py$|(^|/)requirements(-dev)?\.txt$|(^|/)pyproject\.toml$|^tests/fixtures/|^Makefile$|^\.pylintrc$|^action\.yml$|^\.github/workflows/test\.yml$)' > /dev/null; then
             echo "python_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "python_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-  # Static checks give the same result on every interpreter, so they run once, on the
-  # supported floor: syntax newer than 3.10 fails here.
   static-checks:
     needs: detect
     if: needs.detect.outputs.python_changed == 'true'
@@ -111,9 +105,6 @@ jobs:
       - name: Run ${{ matrix.task.name }}
         run: make ${{ matrix.task.target }}
 
-  # The runtime-requirements deny list reads `requirements.txt`, not only Python, so it runs on every change.
-  # Together with the matrix above and the tests below it covers every `make qa` target, which is what lets
-  # the Makefile and DEVELOPER.md claim local runs and CI never drift.
   contract-checks:
     runs-on: ubuntu-latest
     name: Contract Checks (Python 3.10)
@@ -135,7 +126,7 @@ jobs:
         run: make install
 
       - name: Run contract checks
-        run: make runtime-requirements
+        run: make no-vendored-schemas runtime-requirements
 
   tests:
     needs: detect
@@ -145,8 +136,6 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        # Python 3.10 is the supported floor (see `requires-python` in pyproject.toml); the action runs on
-        # whatever Python >= 3.10 the caller puts on PATH, so every version up to 3.14 is tested.
         python-version: [ "3.10", "3.11", "3.12", "3.13", "3.14" ]
     steps:
       - name: Checkout repository
@@ -168,8 +157,6 @@ jobs:
       - name: Run tests with coverage
         run: make coverage
 
-  # Single required status check. Always runs, so it always reports; skipped jobs
-  # (no relevant changes) pass, failed or cancelled ones fail.
   qa-gate:
     needs: [ detect, static-checks, contract-checks, tests ]
     if: always()

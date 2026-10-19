@@ -11,7 +11,7 @@ PYLINT_MIN  ?= 9.5
 COV_MIN     ?= 80
 
 .DEFAULT_GOAL := help
-.PHONY: help install qa lint format format-check types test coverage runtime-requirements
+.PHONY: help install qa lint format format-check types test coverage no-vendored-schemas runtime-requirements
 
 help: ## Show this help.
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) \
@@ -20,7 +20,7 @@ help: ## Show this help.
 install: ## Install the development dependencies (requirements-dev.txt, which pulls in requirements.txt).
 	$(PIP) install -r requirements-dev.txt
 
-qa: format-check lint types runtime-requirements coverage ## Run the full quality gate (format, lint, types, runtime requirements, tests + coverage).
+qa: format-check lint types no-vendored-schemas runtime-requirements coverage ## Run the full quality gate (format, lint, types, contract checks, tests + coverage).
 
 format: ## Reformat all tracked Python files (ruff autofix + Black).
 	ruff check --fix $(PY_FILES)
@@ -35,6 +35,10 @@ lint: ## Run ruff and Pylint (enforce the minimum score).
 
 types: ## Run the mypy static type checker.
 	mypy .
+
+# The contract schemas come from the installed living-doc-utilities; no copy of one is committed here.
+no-vendored-schemas: ## Fail on any committed contract schema file.
+	$(PYTHON) -m living_doc_utilities.contracts.check_no_vendored_schemas
 
 # The action installs requirements.txt into its venv on every run, so it stays runtime-only; the dev tools
 # live in requirements-dev.txt.

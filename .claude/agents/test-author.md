@@ -11,8 +11,8 @@ surface** — so you mock the right target on the first try instead of guessing.
 ## Rules
 
 - Must use `pytest` + `pytest-mock` (`mocker`). Tests live under `tests/`, mirroring the
-  package layout (`tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`
-  and `tests/test_runtime_requirements.py`).
+  package layout (`tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`,
+  `tests/test_contract_checks.py` and `tests/test_runtime_requirements.py`).
 - Must set `INPUT_*` environment variables with `monkeypatch.setenv`; `tests/conftest.py` clears
   every inherited `INPUT_*` before each test, so an unset input reads as unset.
 - Must not call the GitHub API or any network service.
@@ -32,7 +32,8 @@ samples) and reads one only with `living_doc_utilities.contracts.io.read_artifac
 
 | What you need to fake | Pattern used in this repo | Where to copy it from |
 |---|---|---|
-| `INPUT_*` action inputs | `monkeypatch.setenv("INPUT_...", ...)`; the `valid_inputs` fixture sets the two required inputs and changes into `tmp_path` | `tests/conftest.py`, `tests/generator_markdown/test_action_inputs.py` |
+| `INPUT_*` action inputs | `monkeypatch.setenv("INPUT_...", ...)`; the `valid_inputs` fixture sets the two required inputs, writes a real `generator-ready.json` and changes into `tmp_path` | `tests/conftest.py`, `tests/generator_markdown/test_action_inputs.py` |
+| A contract input file | the `write_sample(contract_id, path)` fixture: `write_artifact(full_sample(contract_id), tmp_path / path)`; a broken file is written by hand into `tmp_path` | `tests/conftest.py`, `tests/generator_markdown/test_source_reader.py` |
 | A relative path that must resolve | `monkeypatch.chdir(tmp_path)` (inside `valid_inputs`), then compare with `os.fspath(tmp_path / ...)` | `tests/generator_markdown/test_action_inputs.py::test_valid_inputs_are_read_typed_and_the_output_path_resolved` |
 | `main.run()` exit code + logs | `pytest.raises(SystemExit)` for the exit code; `caplog` for the records, filtered to `ERROR` to assert the one error line | `tests/test_main.py` |
 | The entry point as the action runs it | `subprocess.run([sys.executable, "-E", "main.py"], env=...)` with only the run step's `INPUT_*`, in `tmp_path` | `tests/test_main.py::test_the_entry_point_run_as_the_action_runs_it_prints_one_error_line` |

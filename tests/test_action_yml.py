@@ -26,7 +26,7 @@ from generator_markdown.action_inputs import DEFAULT_OUTPUT_PATH
 REPO_ROOT = Path(__file__).resolve().parents[1]
 ACTION = yaml.safe_load((REPO_ROOT / "action.yml").read_text(encoding="utf-8"))
 STEPS = {step["id"]: step for step in ACTION["runs"]["steps"]}
-INPUTS = ["document-type", "source-path", "output-path", "document-title"]
+INPUTS = ["document-type", "source-path", "output-path", "document-title", "verbose-logging"]
 PIP_ENVIRONMENT = ["PIP_TARGET", "PIP_PREFIX", "PIP_USER", "PIP_ROOT", "PIP_PYTHON", "PYTHONPATH"]
 
 # Stands in for every interpreter the venv step calls: `-c` code runs on this test's interpreter, with the fake's
@@ -111,12 +111,13 @@ def _venv_creations(tmp_path: Path) -> int:
     return sum(" -m venv " in line for line in (tmp_path / "python.calls").read_text(encoding="utf-8").splitlines())
 
 
-def test_the_inputs_are_the_four_the_pdf_generator_names():
+def test_the_inputs_are_the_four_the_pdf_generator_names_then_verbose_logging_off_by_default():
     # Assert
     inputs = ACTION["inputs"]
     assert list(inputs) == INPUTS
-    assert [inputs[name]["required"] for name in INPUTS] == [True, True, False, False]
+    assert [inputs[name]["required"] for name in INPUTS] == [True, True, False, False, False]
     assert inputs["output-path"]["default"] == DEFAULT_OUTPUT_PATH
+    assert inputs["verbose-logging"]["default"] == "false"
 
 
 def test_every_input_reaches_the_entry_point_through_the_run_steps_env():

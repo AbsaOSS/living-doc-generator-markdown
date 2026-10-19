@@ -68,10 +68,10 @@ repo's own risk areas and review expectations; it is not shared with other repos
 ## Repo specifics
 
 - Must treat these as high-risk areas — `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`, the venv step of `action.yml` (the `unset` line, the interpreter identity, the install, the import check) and its run step (`-E`, every input in `env:`), and any future write into `output-path`.
-- Must treat these as contract-sensitive — the four input names (`document-type`, `source-path`, `output-path`, `document-title`, as `living-doc-generator-pdf` names them), the Action output key `output-path`, the default `./output/generator-markdown`, exit code `1` on every failure, the `ActionInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` (tests assert exact content), and one `::error::` line per `action.yml` failure.
+- Must treat these as contract-sensitive — the input names (`document-type`, `source-path`, `output-path`, `document-title`, as `living-doc-generator-pdf` names them, and `verbose-logging`, as `living-doc-collector-gh` names it), the Action output key `output-path`, the default `./output/generator-markdown`, exit code `1` on every failure, the `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` (tests assert exact content), and one `::error::` line per `action.yml` failure.
 - Must flag any change that lets a run with valid inputs exit `0` before rendering writes a document.
 - Must expect the whole generate pipeline to stay AI-free — flag any LLM call introduced into the runtime path.
 - Must expect unit tests under `tests/` mirroring the package layout, with shared fixtures in `tests/conftest.py`.
 - Must treat the contracts as owned by `living-doc-utilities` — imported, not vendored: flag any committed `*-schema.json`, local contract model, or any artifact read other than through `read_artifact`.
 - Must flag a test, lint or type tool added to `requirements.txt`, which the action installs on every run.
-- Must expect QA to run through the root `Makefile` — `make qa` covers `format-check`, `lint`, `types`, `runtime-requirements` and `coverage`; `.github/workflows/test.yml` calls the same targets.
+- Must expect QA to run through the root `Makefile` — `make qa` covers `format-check`, `lint`, `types`, `no-vendored-schemas`, `runtime-requirements` and `coverage`; `.github/workflows/test.yml` calls the same targets.

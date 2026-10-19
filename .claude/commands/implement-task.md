@@ -41,7 +41,7 @@ Brief source (optional override): `$2`
 
 ## 4. Run the `make qa` loop until green
 
-- Run `make qa` (format-check, lint, types, runtime-requirements, coverage — the same targets CI runs).
+- Run `make qa` (format-check, lint, types, no-vendored-schemas, runtime-requirements, coverage — the same targets CI runs).
 - Fix every failure and re-run. Repeat until `make qa` exits clean:
   Pylint ≥ 9.5, Black clean, mypy clean, `pytest --cov-fail-under=80` passing.
 - Do not lower a threshold, add an inline lint disable, or `# type: ignore` to get past a
