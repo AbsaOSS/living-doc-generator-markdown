@@ -181,3 +181,5 @@ run_script.sh
 output/*
 # Local review loop state (/verify-pr-ready ledger, snapshots)
 .review/
+# The draft PR body /implement-task writes; it goes to the PR, not the repository.
+/pr.md

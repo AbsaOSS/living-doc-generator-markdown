@@ -27,7 +27,7 @@ each task's issue.
 - Must treat execution as a GitHub Action on a GitHub-hosted runner as the supported path; a `python3 main.py` run is a development and debugging affordance only.
 - Must read action inputs from `INPUT_*` environment variables and nowhere else.
 - Must keep the whole generate pipeline AI-free — deterministic Python only, no LLM call anywhere in that path.
-- Must keep environment access at the module boundary — `generator_markdown/action_inputs.py` — and Must keep any other module free of environment reads.
+- Must keep environment access at the module boundary — `generator_markdown/action_inputs.py` — and Must keep any other module free of environment reads; `living-doc-utilities`' `setup_logging()`, called from `main.py`, reads `INPUT_VERBOSE_LOGGING` and `RUNNER_DEBUG` itself.
 
 ## Repo specifics
 
@@ -35,27 +35,31 @@ Module map — `main.py` at the root plus one package, `generator_markdown/`:
 
 | Path | Responsibility |
 |---|---|
-| `main.py` | Entry point — `run()`; sets up logging, validates the inputs through `ActionInputs.from_environment()`, then fails with `RENDERING_NOT_IMPLEMENTED_MESSAGE`; maps every failure to exit code `1` |
-| `generator_markdown/action_inputs.py` | Input layer — `DocumentType` (the three document types), `ActionInputs.from_environment()` reads every `INPUT_*` via `living_doc_utilities.github.utils.get_action_input` and raises `ActionInputError` with a one-line message |
+| `main.py` | Entry point — `run()`; sets up logging, validates the inputs through `ActionInputs.from_environment()`, reads the input file through `read_source()`, then fails with `RENDERING_NOT_IMPLEMENTED_MESSAGE`; maps every failure to exit code `1` |
+| `generator_markdown/action_inputs.py` | Input layer — `DocumentType` (the three document types), `ActionInputs.from_environment()` reads every `INPUT_*` but `INPUT_VERBOSE_LOGGING` via `living_doc_utilities.github.utils.get_action_input` and raises `ActionInputError` with a one-line message |
+| `generator_markdown/source_reader.py` | Input file reader — `read_source()` reads `source-path` with `living_doc_utilities.contracts.io.read_artifact` as the one contract its document type renders (`CONTRACT_NAMES`) and returns the typed model; every failure is a `SourceInputError` with a one-line message naming `source-path` (`TOOLKIT_COMMANDS` for a collector output) |
 | `action.yml` | Composite action — the venv step (Python check, venv under `$RUNNER_TEMP`, install, import check) and the run step (`-E main.py`, every input in `env:`) |
 | `tools/check_runtime_requirements.py` | `make runtime-requirements` — the deny list that keeps `requirements.txt` runtime-only |
+| `tools/write_sample_inputs.py` | Writes `living-doc-utilities`' full sample of each named contract into a directory — the integration jobs' inputs and a debug run's |
 
-- Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → log `RENDERING_NOT_IMPLEMENTED_MESSAGE` → `sys.exit(1)`.
+- Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → `read_source()`, logging a `SourceInputError` and `sys.exit(1)` → log ``"Liv-Doc generator for Markdown - input read: `<schema_version>`."`` → log the input's producer at DEBUG → log `RENDERING_NOT_IMPLEMENTED_MESSAGE` → `sys.exit(1)`.
 - Must keep exactly one error line per failed run, since `tests/test_main.py` asserts there is one.
 
-Inputs — `INPUT_*` environment variables, parsed only in `ActionInputs` (names as `living-doc-generator-pdf` declares them):
+Inputs — `INPUT_*` environment variables, parsed only in `ActionInputs` but `verbose-logging` (the first four named as `living-doc-generator-pdf` declares them, `verbose-logging` as `living-doc-collector-gh` does):
 
 | Input | Env var | Required | Notes |
 |---|---|---|---|
 | `document-type` | `INPUT_DOCUMENT_TYPE` | yes | `technical-project`, `ui-test-catalog` or `coverage-matrix` (`DocumentType`) |
-| `source-path` | `INPUT_SOURCE_PATH` | yes | the input JSON file; not read yet |
+| `source-path` | `INPUT_SOURCE_PATH` | yes | the input JSON file — `generator-ready`, `ui-test-catalog` or `coverage-matrix` by document type; read by `read_source()` |
 | `output-path` | `INPUT_OUTPUT_PATH` | no | an output directory, default `./output/generator-markdown` (`DEFAULT_OUTPUT_PATH`); empty means the default; resolved to an absolute path |
 | `document-title` | `INPUT_DOCUMENT_TITLE` | no | default empty |
+| `verbose-logging` | `INPUT_VERBOSE_LOGGING` | no | default `'false'`; `true`, in any case, gives DEBUG logs; read by `living_doc_utilities.logging_config.setup_logging()`, not by `ActionInputs` |
 
 Contract-sensitive outputs:
 
 - Must keep the Action output key `output-path` stable — `action.yml` declares it from the run step `liv-doc-generator`; the action does not set it yet, as no run succeeds.
 - Must keep the input error messages stable — `` Input `document-type` is required; valid types: technical-project, ui-test-catalog, coverage-matrix. ``, `` Input `document-type` is '<value>', not a valid type; valid types: … ``, `` Input `source-path` is required: the path to the input JSON file. `` — tests assert exact text.
+- Must keep the `SourceInputError` messages stable — each starts `` Input `source-path` is '<value>' ``; a collector output names `` the `living-doc-toolkit` command `normalize-docs` `` (`normalize-tests`, `coverage-matrix`) and another document type's file `` which document type `<type>` renders `` — `tests/generator_markdown/test_source_reader.py` asserts exact text.
 - Must keep `RENDERING_NOT_IMPLEMENTED_MESSAGE` (`Rendering is not implemented yet: living-doc-generator-markdown validated its inputs and wrote no document.`) until rendering replaces it.
 - Must keep every `action.yml` failure to one `::error::` line — `tests/test_action_yml.py` runs the venv step and asserts it.
 - Must keep exit-code behaviour stable — `1` on every failure; no run exits `0` yet. There is no `2`–`5` taxonomy in this repo.
@@ -67,14 +71,14 @@ Contract-sensitive outputs:
 - Prefer explicit code over clever constructs.
 - Must keep externally visible behaviour stable unless the task is an intentional contract change.
 - Must not change existing log texts or error messages without a stated reason.
-- Prefer pure functions for reading and rendering logic, and Avoid reading the environment outside `generator_markdown/action_inputs.py`.
+- Prefer pure functions for reading and rendering logic, and Avoid reading the environment outside `generator_markdown/action_inputs.py` (`setup_logging()` excepted).
 
 ## Inputs
 
-- Must read every input through `ActionInputs.from_environment()`, and Must not call `get_action_input` or `os.getenv("INPUT_...")` from any other module.
+- Must read every input through `ActionInputs.from_environment()` but `verbose-logging`, which `setup_logging()` reads, and Must not call `get_action_input` or `os.getenv("INPUT_...")` from any other module.
 - Must centralise parsing, defaulting, and validation in `ActionInputs`, and Must raise `ActionInputError` with a one-line message that names the input.
 - Avoid duplicating input validation across modules.
-- Must keep the four input names identical to `living-doc-generator-pdf`'s, so a pipeline can switch generators.
+- Must keep `document-type`, `source-path`, `output-path` and `document-title` identical to `living-doc-generator-pdf`'s, so a pipeline can switch generators, and `verbose-logging` identical to `living-doc-collector-gh`'s.
 
 ## Language and style
 
@@ -108,17 +112,17 @@ Contract-sensitive outputs:
 ## Testing
 
 - Must use `pytest` with `pytest-mock` (`mocker`), and Must not use `unittest`.
-- Must keep tests under `tests/`, mirroring the package layout — `tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py` and `tests/test_runtime_requirements.py`.
+- Must keep tests under `tests/`, mirroring the package layout — `tests/generator_markdown/`, plus `tests/test_main.py`, `tests/test_action_yml.py`, `tests/test_contract_checks.py`, `tests/test_runtime_requirements.py` and `tests/test_write_sample_inputs.py`.
 - Must test behaviour — return values, raised exceptions, log messages, exit codes.
 - Must set `INPUT_*` environment variables with `monkeypatch.setenv` in unit tests; `tests/conftest.py` clears every inherited `INPUT_*` first.
 - Must not call external services or the GitHub API in unit tests.
-- Prefer shared fixtures in `tests/conftest.py` (`valid_inputs`).
+- Prefer shared fixtures in `tests/conftest.py` (`valid_inputs`, `write_sample`).
 - Must treat the contracts as owned by `living-doc-utilities` — imported, never vendored: no committed `*-schema.json`, no local contract model.
 
 ## Tooling and quality gates
 
-- Must run `make qa` before finishing a code change — it runs `format-check` → `lint` → `types` → `runtime-requirements` → `coverage` and fails on the first failing gate.
-- Must use the individual targets while iterating — `make format`, `make format-check`, `make lint`, `make types`, `make runtime-requirements`, `make test`, `make coverage`.
+- Must run `make qa` before finishing a code change — it runs `format-check` → `lint` → `types` → `no-vendored-schemas` → `runtime-requirements` → `coverage` and fails on the first failing gate.
+- Must use the individual targets while iterating — `make format`, `make format-check`, `make lint`, `make types`, `make no-vendored-schemas`, `make runtime-requirements`, `make test`, `make coverage`.
 - Must keep `make lint` clean — it runs ruff (`E` / `F` / `I` / `B` over tracked `*.py`, config in `pyproject.toml`) then Pylint, and Pylint must score 9.5 or higher.
 - Must keep `make format-check` (Black, line length 120, config in `pyproject.toml`) clean, and Prefer `make format` (ruff autofix + Black) to fix import order and formatting in one step.
 - Must keep `make types` (mypy, config in `pyproject.toml`) clean, and Prefer fixing types over adding ignores.
@@ -128,12 +132,12 @@ Contract-sensitive outputs:
 ## Common pitfalls
 
 - Must verify a new dependency supports Python 3.10 before adding it, and Must keep `requirements.txt` and `action.yml` in step when inputs or dependencies change. Must put a test, lint or type pin in `requirements-dev.txt`, never in `requirements.txt`, which the action installs on every run.
-- Must add a new input to `action.yml`'s inputs, to the run step's `env:` and to `ActionInputs` together — under `-E` the run step's `env:` is the only way an input reaches `main.py`.
+- Must add a new input to `action.yml`'s inputs, to the run step's `env:` and to `ActionInputs` together (`verbose-logging` excepted: `setup_logging()` reads it) — under `-E` the run step's `env:` is the only way an input reaches `main.py`.
 - Must remove unused imports and variables in the same change, and Avoid leaving dead code.
 - Avoid changing externally visible strings, the `output-path` key, the default output directory, or exit codes unless the task calls for it.
 
 ## Learned rules
 
-- Must keep the `ActionInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` stable — `tests/generator_markdown/test_action_inputs.py` and `tests/test_main.py` assert exact strings and `sys.exit(1)`.
+- Must keep the `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` stable — `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py` and `tests/test_main.py` assert exact strings and `sys.exit(1)`.
 - Must not introduce a `2`–`5` exit-code taxonomy; this action reports every failure as `1`.
 - Must keep a user-supplied value in an error message on one line (`!r`), since a run fails with exactly one error line.

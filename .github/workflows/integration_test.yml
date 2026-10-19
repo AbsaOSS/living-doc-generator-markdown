@@ -16,9 +16,6 @@
 
 name: "Integration Test"
 
-# Runs the composite action through `uses: ./` and checks the venv it brings. Rendering is not implemented yet,
-# so a run with valid inputs fails on purpose once the inputs are validated; each job runs the action with
-# `continue-on-error` and asserts on the venv and on that failure, not on a document.
 on:
   pull_request:
     paths:
@@ -28,17 +25,14 @@ on:
       - 'requirements.txt'
       - 'requirements-dev.txt'
       - 'action.yml'
+      - 'tools/write_sample_inputs.py'
       - '.github/workflows/integration_test.yml'
   workflow_dispatch:
 
-# Least privilege: every job here runs repository code through `uses: ./` and makes no GitHub API call, so
-# none of them needs more than read access.
 permissions:
   contents: read
 
 jobs:
-  # The action brings its own venv: it installs nothing into the runner's interpreter and leaves the
-  # caller's `PATH` and packages untouched. Two steps of the action in one job share and reuse the venv.
   action-venv-isolation:
     runs-on: ubuntu-latest
     name: Action Venv - Isolation and Reuse
@@ -48,15 +42,20 @@ jobs:
         with:
           persist-credentials: false
 
-      # 3.12: pydantic 1.x, the conflicting pin below, publishes wheels for it.
       - name: Set up Python
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
         with:
           python-version: '3.12'
 
-      # A pydantic `living-doc-utilities` cannot run on: were the action using this interpreter its import
-      # check would fail, and were it installing into this interpreter, this version would be gone by the
-      # last step.
+      - name: Write the inputs from the living-doc-utilities samples
+        run: |
+          set -euo pipefail
+          python -m venv "${RUNNER_TEMP}/samples-venv"
+          "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
+          "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" \
+            generator-ready coverage-matrix
+          rm -rf "${RUNNER_TEMP}/samples-venv"
+
       - name: Install a conflicting pydantic into the runner's interpreter
         run: |
           set -euo pipefail
@@ -73,12 +72,9 @@ jobs:
         uses: ./
         with:
           document-type: technical-project
-          source-path: generator-ready.json
+          source-path: ${{ runner.temp }}/inputs/generator-ready.json
           output-path: ${{ github.workspace }}/output/first
 
-      # `pyvenv.cfg`'s mtime, not a stray marker file: `python -m venv` without `--clear` leaves pre-existing
-      # files in the target directory alone, so a marker survives a full re-create and proves nothing. The
-      # config is rewritten (mode `w`) on every create, so an unchanged mtime can only mean the venv was reused.
       - name: Stamp the venv
         run: stat -c %Y "${RUNNER_TEMP}/living-doc-generator-markdown-venv/pyvenv.cfg" > "${RUNNER_TEMP}/venv-cfg-mtime.txt"
 
@@ -88,7 +84,7 @@ jobs:
         uses: ./
         with:
           document-type: coverage-matrix
-          source-path: coverage-matrix.json
+          source-path: ${{ runner.temp }}/inputs/coverage-matrix.json
           output-path: ${{ github.workspace }}/output/second
 
       - name: Both steps failed as the scaffold must, the venv was reused, the caller's environment is unchanged
@@ -96,37 +92,31 @@ jobs:
           VENV: ${{ runner.temp }}/living-doc-generator-markdown-venv
         run: |
           set -euo pipefail
-          # Valid inputs fail on purpose until rendering lands; a step that succeeded would mean a run passed
-          # for output it never wrote.
           test "${{ steps.first.outcome }}" = failure
           test "${{ steps.second.outcome }}" = failure
-          # Neither step wrote anything.
           test ! -e "${{ github.workspace }}/output"
-          # `pyvenv.cfg` was not rewritten, so the second step reused the venv instead of recreating it.
           test "$(stat -c %Y "$VENV/pyvenv.cfg")" = "$(cat "${RUNNER_TEMP}/venv-cfg-mtime.txt")"
-          # The failure is the generator's own, on the venv the action built: the same entry point, run as the
-          # action runs it, stops on the not-implemented message - a failed install would stop on an import.
-          set +e
-          INPUT_DOCUMENT_TYPE=technical-project INPUT_SOURCE_PATH=generator-ready.json \
-            "$VENV/bin/python" -E main.py > "${RUNNER_TEMP}/replay.log" 2>&1
-          status=$?
-          set -e
-          cat "${RUNNER_TEMP}/replay.log"
-          test "$status" = 1
-          grep -F 'Rendering is not implemented yet' "${RUNNER_TEMP}/replay.log"
+          replay() {
+            set +e
+            INPUT_DOCUMENT_TYPE="$1" INPUT_SOURCE_PATH="${RUNNER_TEMP}/inputs/$2.json" \
+              "$VENV/bin/python" -E main.py > "${RUNNER_TEMP}/replay-$2.log" 2>&1
+            status=$?
+            set -e
+            cat "${RUNNER_TEMP}/replay-$2.log"
+            test "$status" = 1
+            grep -F "input read: \`$2-v" "${RUNNER_TEMP}/replay-$2.log"
+            grep -F 'Rendering is not implemented yet' "${RUNNER_TEMP}/replay-$2.log"
+          }
+          replay technical-project generator-ready
+          replay coverage-matrix coverage-matrix
           {
             which python
             python --version
             python -c 'import pydantic; print(pydantic.VERSION)'
           } | tee "${RUNNER_TEMP}/after.txt"
           diff "${RUNNER_TEMP}/before.txt" "${RUNNER_TEMP}/after.txt"
-          echo '::notice::both steps failed on the not-implemented message, the venv was reused, and the runner interpreter is unchanged.'
+          echo '::notice::both steps failed, both replays read their input and stopped on the not-implemented message, the venv was reused, and the runner interpreter is unchanged.'
 
-  # The venv is keyed to the interpreter that built it. A job that switches `actions/setup-python` between
-  # two invocations must get a rebuilt venv, never the previous interpreter's - that is what the
-  # `sys.base_prefix` comparison in `action.yml` is for, and what the job above cannot see, because both of
-  # its invocations run on the same Python. Asserted on the venv's own interpreter rather than on a
-  # `pyvenv.cfg` mtime: a reused venv would still report 3.12, so the version is the rebuild itself.
   action-venv-rebuilt-when-python-changes:
     runs-on: ubuntu-latest
     name: Action Venv - Rebuilt When Python Changes
@@ -141,13 +131,21 @@ jobs:
         with:
           python-version: '3.12'
 
+      - name: Write the input from the living-doc-utilities samples
+        run: |
+          set -euo pipefail
+          python -m venv "${RUNNER_TEMP}/samples-venv"
+          "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
+          "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" generator-ready
+          rm -rf "${RUNNER_TEMP}/samples-venv"
+
       - name: Run the action on 3.12
         id: on-312
         continue-on-error: true
         uses: ./
         with:
           document-type: technical-project
-          source-path: generator-ready.json
+          source-path: ${{ runner.temp }}/inputs/generator-ready.json
 
       - name: The venv was built from 3.12
         run: |
@@ -167,18 +165,16 @@ jobs:
         uses: ./
         with:
           document-type: technical-project
-          source-path: generator-ready.json
+          source-path: ${{ runner.temp }}/inputs/generator-ready.json
 
       - name: The venv was rebuilt from the interpreter now on PATH
         run: |
           set -euo pipefail
           test "${{ steps.on-311.outcome }}" = failure
-          # Were the venv reused, the generator would have run on the 3.12 left behind by the first step.
           "${RUNNER_TEMP}/living-doc-generator-markdown-venv/bin/python" \
             -c 'import sys, living_doc_utilities; assert sys.version_info[:2] == (3, 11), sys.version'
           echo '::notice::switching the interpreter rebuilt the venv instead of reusing the 3.12 one.'
 
-  # Python older than the 3.10 floor fails the action with one actionable error, before it creates any venv.
   action-rejects-python-39:
     runs-on: ubuntu-latest
     name: Action Venv - Python 3.9 Is Rejected
@@ -187,6 +183,19 @@ jobs:
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           persist-credentials: false
+
+      - name: Set up Python 3.12 for the input
+        uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
+        with:
+          python-version: '3.12'
+
+      - name: Write the input from the living-doc-utilities samples
+        run: |
+          set -euo pipefail
+          python -m venv "${RUNNER_TEMP}/samples-venv"
+          "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
+          "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" generator-ready
+          rm -rf "${RUNNER_TEMP}/samples-venv"
 
       - name: Set up Python 3.9
         uses: actions/setup-python@5fda3b95a4ea91299a34e894583c3862153e4b97 # v7.0.0
@@ -199,13 +208,11 @@ jobs:
         uses: ./
         with:
           document-type: technical-project
-          source-path: generator-ready.json
+          source-path: ${{ runner.temp }}/inputs/generator-ready.json
 
       - name: The action failed on the version check, before creating a venv
         run: |
           set -euo pipefail
-          # `PATH`'s Python really is the one the floor rejects: without this the job would also pass if
-          # `setup-python` resolved something newer and the action failed for an unrelated reason.
           python3 -c 'import sys; assert sys.version_info[:2] == (3, 9), sys.version'
           if [[ "${{ steps.run-on-39.outcome }}" != "failure" ]]; then
             echo "::error::the action must fail when PATH's Python is older than 3.10."; exit 1

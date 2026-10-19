@@ -91,7 +91,7 @@ Repo specifics
   - Format: `make format` (check-only: `make format-check`)
   - Lint: `make lint` (Pylint score ≥ 9.5)
   - Types: `make types`
-  - Contract checks: `make runtime-requirements`
+  - Contract checks: `make no-vendored-schemas runtime-requirements`
   - Coverage: `make coverage` (`--cov-fail-under=80`)
 - Workflow set
   - `test.yml` (fleet shape: `detect` path filter, static checks, contract checks and the test matrix, all gated by `QA Gate`), `link-check.yml` (lychee, behind a `detect` / `noop` path filter), `aquasec-night-scan.yml`, `release_draft.yml`, `check_pr_release_notes.yml`, `check-pr-requirements.yml`, `dependabot.yml` (auto-merge), `integration_test.yml` (the action's venv: isolation and reuse, rebuild on an interpreter change, Python 3.9 rejected).

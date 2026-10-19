@@ -15,6 +15,10 @@ inputs:
     description: 'Title of the document; optional.'
     required: false
     default: ''
+  verbose-logging:
+    description: 'Enable or disable verbose logging.'
+    required: false
+    default: 'false'
 
 outputs:
   output-path:
@@ -60,6 +64,7 @@ runs:
         INPUT_SOURCE_PATH: ${{ inputs.source-path }}
         INPUT_OUTPUT_PATH: ${{ inputs.output-path }}
         INPUT_DOCUMENT_TITLE: ${{ inputs.document-title }}
+        INPUT_VERBOSE_LOGGING: ${{ inputs.verbose-logging }}
       run: |
         "${{ steps.venv.outputs.python }}" -E "${{ github.action_path }}/main.py"
       shell: bash

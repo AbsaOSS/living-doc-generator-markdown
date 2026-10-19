@@ -51,6 +51,11 @@ jobs:
         run: |
           set -euo pipefail
 
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             changed_files=$(gh api \
               "repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/files" \
@@ -81,6 +86,7 @@ jobs:
         with:
           args: >-
             --no-progress
+            --hidden
             --include-fragments
             --max-retries 3
             --retry-wait-time 5

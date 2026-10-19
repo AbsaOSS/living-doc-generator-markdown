@@ -101,10 +101,10 @@ Repo specifics
   - Must take prospective (not-yet-built) behavior from the task's issue — the specification lives outside this repository, and the repository keeps no spec file.
   - Prefer `README.md` for what the action is for, its status, inputs and outputs, and `DEVELOPER.md` for the local-dev workflow, the gates and the action's venv rules.
 - Contract-sensitive outputs
-  - The four inputs `document-type`, `source-path`, `output-path`, `document-title`, named as `living-doc-generator-pdf` names them, so the two generators stay interchangeable.
+  - The inputs `document-type`, `source-path`, `output-path`, `document-title`, named as `living-doc-generator-pdf` names them, so the two generators stay interchangeable, and `verbose-logging`, as `living-doc-collector-gh` names it.
   - Action output key `output-path` (declared in `action.yml` from the run step `liv-doc-generator`); default output directory `./output/generator-markdown`.
   - Exit codes — `1` on every failure; no `2`–`5` taxonomy.
-  - The `ActionInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` asserted in `tests/generator_markdown/test_action_inputs.py` and `tests/test_main.py`.
+  - The `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py` and `tests/test_main.py`.
   - The documents and the run report rendered from the `living-doc-utilities` contracts `generator-ready`, `ui-test-catalog` and `coverage-matrix`.
 - High-risk areas
   - `INPUT_*` parsing in `generator_markdown/action_inputs.py` — missing, empty and malformed values.
