@@ -18,11 +18,13 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 
 `source-path` is the one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output its document type renders, read through the [`living-doc-utilities`](https://github.com/AbsaOSS/living-doc-utilities) contracts:
 
-| `document-type` | `source-path` | Written by the `living-doc-toolkit` command |
+| `document-type` | `source-path` | Written by the `living-doc-toolkit` command (next release) |
 |---|---|---|
 | `technical-project` | `generator-ready.json` | `normalize-docs` |
 | `ui-test-catalog` | `ui-test-catalog.json` | `normalize-tests` |
 | `coverage-matrix` | `coverage-matrix.json` | `coverage-matrix` |
+
+Today's `living-doc-toolkit` writes none of these files yet; [DEVELOPER.md § Debug run](DEVELOPER.md#debug-run) writes one from the `living-doc-utilities` samples.
 
 - A missing `document-type` or `source-path`, or an unknown `document-type`, fails the run with one line naming the input.
 - A `source-path` that is missing, unreadable or not JSON, or a file its contract rejects, fails the run with one line naming `source-path`.

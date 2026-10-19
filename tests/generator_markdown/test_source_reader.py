@@ -214,6 +214,47 @@ def test_an_empty_file_is_rejected_as_not_json(tmp_path):
     assert message.startswith("Input `source-path` is 'input.json', which is not JSON: ")
 
 
+def test_json_nested_past_the_recursion_limit_is_rejected_on_one_line(tmp_path):
+    # Arrange: deep enough for every supported Python's decoder.
+    depth = 1_000_000
+    (tmp_path / SOURCE).write_text("[" * depth + "]" * depth, encoding="utf-8")
+
+    # Act
+    message = _rejection(DocumentType.TECHNICAL_PROJECT)
+
+    # Assert
+    assert message.startswith("Input `source-path` is 'input.json', which cannot be loaded: ")
+
+
+def test_an_integer_past_pythons_digit_limit_is_rejected_on_one_line(tmp_path):
+    # Arrange
+    (tmp_path / SOURCE).write_text(
+        '{"schema_version": "generator-ready-v1.0.0", "n": ' + "1" * 5000 + "}", encoding="utf-8"
+    )
+
+    # Act
+    message = _rejection(DocumentType.TECHNICAL_PROJECT)
+
+    # Assert
+    assert message.startswith("Input `source-path` is 'input.json', which cannot be loaded: ")
+    assert "integer string conversion" in message
+
+
+def test_a_value_a_contract_model_cannot_report_is_rejected_on_one_printable_line(write_sample):
+    # Arrange: a lone surrogate in a repository the model rejects; pydantic cannot encode the model's own message.
+    source = write_sample(generator_ready.CONTRACT_ID, SOURCE)
+    payload = json.loads(source.read_text(encoding="utf-8"))
+    payload["metadata"]["source"]["repositories"] = ["\ud800/repository"]
+    source.write_text(json.dumps(payload), encoding="utf-8")
+
+    # Act
+    message = _rejection(DocumentType.TECHNICAL_PROJECT)
+
+    # Assert
+    assert message.startswith("Input `source-path` is 'input.json', which cannot be loaded: ")
+    assert message.isprintable()
+
+
 @pytest.mark.parametrize(
     ("content", "detail"),
     [
@@ -279,9 +320,19 @@ def test_a_file_failing_model_validation_is_rejected_on_one_line(write_sample):
     assert "\n" not in message
 
 
-def test_a_version_of_the_expected_contract_the_installed_utilities_lacks_is_rejected_with_the_pin_hint(tmp_path):
+@pytest.mark.parametrize(
+    ("schema_version", "schema_file"),
+    [
+        ("generator-ready-v9.9.9", "'generator-ready-v9.9.9-schema.json'"),
+        # `utilities` accepts a trailing line break in `schema_version`; the quoted name keeps the message one line.
+        ("generator-ready-v1.0.0\n", "'generator-ready-v1.0.0\\n-schema.json'"),
+    ],
+)
+def test_a_version_of_the_expected_contract_the_installed_utilities_lacks_is_rejected_with_the_pin_hint(
+    tmp_path, schema_version, schema_file
+):
     # Arrange
-    (tmp_path / SOURCE).write_text('{"schema_version": "generator-ready-v9.9.9"}', encoding="utf-8")
+    (tmp_path / SOURCE).write_text(json.dumps({"schema_version": schema_version}), encoding="utf-8")
 
     # Act
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
@@ -289,7 +340,7 @@ def test_a_version_of_the_expected_contract_the_installed_utilities_lacks_is_rej
     # Assert
     assert message == (
         f"Input `source-path` is 'input.json', a `generator-ready` version living-doc-utilities "
-        f"{installed_utilities_version()} ships no schema for (generator-ready-v9.9.9-schema.json); "
+        f"{installed_utilities_version()} ships no schema for ({schema_file}); "
         "the components run different utilities versions — align the pins."
     )
 

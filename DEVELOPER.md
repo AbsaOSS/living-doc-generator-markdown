@@ -26,7 +26,7 @@ Read before: [README](README.md)
 | `requirements.txt` | Runtime only: `living-doc-utilities`, the one package `main.py` and `generator_markdown/` import | `action.yml`, into its venv, on every run |
 | `requirements-dev.txt` | `-r requirements.txt`, the gate and test tools, and `PyYAML` for `tests/test_action_yml.py` | `make install` and `test.yml` |
 
-- The supported floor is 3.10, as `pyproject.toml` `requires-python` states; CI tests 3.10 through 3.14.
+- The supported floor is 3.10, as `pyproject.toml` `requires-python` states; [CI](#ci) says which versions are tested.
 - A test, lint or type tool in `requirements.txt` would download on every run of every caller; `make qa` fails on one.
 - Dependabot covers both files from its single `pip` entry in `.github/dependabot.yml`.
 
@@ -103,8 +103,8 @@ python3 main.py
 `test.yml` runs the gates, `integration_test.yml` runs the action itself, and `link-check.yml` checks the Markdown
 links.
 
-- `QA Gate` is the one required check: it always runs, passes over a skipped job and fails on a failed or
-  cancelled one.
+- `QA Gate` is the job to mark as the one required check: it always runs, passes over a skipped job and fails on a
+  failed or cancelled one.
   - Why: a required check must report on every pull request, also on one that changed no Python.
 - The gates run when a Python-related file changed: `*.py`, `requirements*.txt`, `pyproject.toml`, `Makefile`,
   `.pylintrc`, `action.yml`, `test.yml` or `tests/fixtures/`.

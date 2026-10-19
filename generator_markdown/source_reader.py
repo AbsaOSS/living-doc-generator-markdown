@@ -70,7 +70,7 @@ def read_source(document_type: DocumentType, source_path: str) -> SourceDocument
     @param document_type: The document to render.
     @param source_path: The `source-path` input, as given.
     @return: The typed contract model `read_artifact` returns.
-    @raise SourceInputError: The file is missing, unreadable, not UTF-8 JSON, another contract, or invalid.
+    @raise SourceInputError: The file is missing, unreadable, not UTF-8 JSON, unloadable, another contract, or invalid.
     """
     expected = CONTRACT_NAMES[document_type]
     # `!r` keeps a path with a line break on the one line the run fails with.
@@ -87,7 +87,7 @@ def read_source(document_type: DocumentType, source_path: str) -> SourceDocument
         # The file was read: the schema of the `expected` version it declares is not in the installed library.
         raise SourceInputError(
             f"{named}, a `{expected}` version living-doc-utilities {installed_utilities_version()} ships no "
-            f"schema for ({Path(error.filename).name}); the components run different utilities versions — "
+            f"schema for ({Path(error.filename).name!r}); the components run different utilities versions — "
             "align the pins."
         ) from error
     except OSError as error:
@@ -98,6 +98,10 @@ def read_source(document_type: DocumentType, source_path: str) -> SourceDocument
         raise SourceInputError(
             f"{named}, which is not JSON: {error.msg} at line {error.lineno}, column {error.colno}."
         ) from error
+    except (ValueError, RecursionError) as error:
+        # JSON can still fail to load: an integer past Python's digit limit, nesting past its recursion limit, or a
+        # value a contract model's own check cannot report.
+        raise SourceInputError(f"{named}, which cannot be loaded: {' '.join(str(error).split())}.") from error
 
     # `read_artifact` returns the typed model of the one contract it was asked for, never a dict.
     assert isinstance(document, (GeneratorReadyResult, UiTestCatalogResult, CoverageMatrixResult))
