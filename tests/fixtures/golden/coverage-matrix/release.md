@@ -20,9 +20,9 @@
 
 | Criterion | State | Status | Scenarios |
 |---|---|---|---|
-| US-001-01 | active | `COVERED` | — |
-| US-001-04 | active | `PARTIALLY COVERED` 1/3 | — |
-| US-001-05 | active | `NOT COVERED` | — |
+| US-001-01 | active | `COVERED` | per aspect, below |
+| US-001-04 | active | `PARTIALLY COVERED` 1/3 | per aspect, below |
+| US-001-05 | active | `NOT COVERED` | per aspect, below |
 
 **US-001-01** `COVERED`
 

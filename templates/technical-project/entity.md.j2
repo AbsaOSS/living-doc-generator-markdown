@@ -44,6 +44,14 @@
 {% endif %}
 {% endfor %}
 {% endif %}
+{% if entity.inner.not_loaded %}
+
+**Not loaded from the input**
+
+{% for item in entity.inner.not_loaded %}
+{% include "technical-project/not-loaded.md.j2" %}
+{% endfor %}
+{% endif %}
 {% if entity.body.criteria %}
 
 **Acceptance criteria**
@@ -68,13 +76,5 @@
 {{ (item.depth + 1) | indent }}- {{ item.text }}
 {% endfor %}
 {% endfor %}
-{% endfor %}
-{% endif %}
-{% if entity.inner.not_loaded %}
-
-**Not loaded from the input**
-
-{% for item in entity.inner.not_loaded %}
-{% include "technical-project/not-loaded.md.j2" %}
 {% endfor %}
 {% endif %}

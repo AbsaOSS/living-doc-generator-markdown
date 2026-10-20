@@ -60,13 +60,14 @@ The rendering keeps three rules. Each is held by one module, and a test fails wh
 |---|---|---|
 | One presentation module maps an input model and its `document.view` to a presentation model of plain data; a template under `templates/<document-type>/` only renders it. Its later move into `living-doc-utilities` changes nothing a caller sees. | `generator_markdown/presentation.py` | `tests/generator_markdown/test_golden.py`, against `tests/fixtures/golden/` |
 | Every run report carries the render manifest: per view, the entity ids, acceptance criteria, aspects and badges the document shows. | `generator_markdown/run_report.py`, from `presentation.py`'s `render_manifest()` | `tests/generator_markdown/test_run_report.py` |
-| Every link passes `living_doc_utilities.authoring.url_policy.safe_href`, and every printed value is escaped, so no raw HTML, link, heading or list from an input reaches the Markdown. | `generator_markdown/presentation.py` for links, `generator_markdown/renderer.py` for escaping | `tests/generator_markdown/test_safe_output.py` |
+| Every link passes `living_doc_utilities.authoring.url_policy.safe_href`, and every printed value is escaped, so no raw HTML, link, heading or list from an input reaches the Markdown. GitHub still links a bare address in authored text by itself, to the address as written. | `generator_markdown/presentation.py` for links, `generator_markdown/renderer.py` for escaping | `tests/generator_markdown/test_safe_output.py` |
 
 - The presentation module imports only the `living-doc-utilities` contract models and returns frozen dataclasses: no
   Jinja type, no file access.
   - Why: a move must change neither its input nor its output, which the golden snapshots compare byte for byte.
 - A link inside the document points to an anchor the presentation derives from an entity id, `[a-z0-9_-]` only; an
-  entity's heading holds its id alone, so every renderer derives the same anchor.
+  entity's heading holds its id alone, so every renderer derives the same anchor. An id outside ASCII, or one whose
+  anchor would be empty or another id's, shows unlinked, as an id the document does not hold does.
 - After an intended change to the output, rewrite the snapshots with
   `UPDATE_GOLDEN=1 pytest tests/generator_markdown/test_golden.py`, and review their diff with the change.
 

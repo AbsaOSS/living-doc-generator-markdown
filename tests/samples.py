@@ -45,6 +45,15 @@ _RELEASE_DROPS = {"planned", "in_review"}
 _MARKDOWN = MarkdownIt("commonmark").enable("table")
 
 
+def _keep_every_link(_url: str) -> bool:
+    return True
+
+
+# markdown-it drops a `javascript:`, `vbscript:`, `file:` or `data:` link before it tokenizes it; a test must see every
+# link the Markdown holds.
+_MARKDOWN.validateLink = _keep_every_link
+
+
 def sample(contract_id: str, view: str = "inner") -> ContractResult:
     """`full_sample(contract_id)` as a transform writes it for `view`."""
     document = full_sample(contract_id)

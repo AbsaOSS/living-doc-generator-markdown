@@ -17,7 +17,8 @@
 """
 The Markdown renderer: it renders a presentation model through the templates under `templates/<document-type>/`. Every
 value a template prints is escaped, so authored text reaches the Markdown as text, never as HTML, a link, a heading or
-a list; only this module's filters write Markdown syntax around a value.
+a list; only this module's filters write Markdown syntax around a value. GitHub still links a bare address in authored
+text by itself, to the address as written.
 """
 
 import re
@@ -33,7 +34,8 @@ from generator_markdown.presentation import Link, Presentation
 TEMPLATES_DIR = Path(__file__).resolve().parents[1] / "templates"
 
 # Every ASCII character that opens Markdown inline syntax. `<`, `>` and `&` become entities, which every renderer
-# reads as text, so no HTML tag and no autolink can form; the rest take a backslash.
+# reads as text, so no HTML tag and no autolink can form; so do `|` and `~`, which Python-Markdown cannot escape with
+# a backslash; the rest take a backslash.
 _ESCAPES = str.maketrans(
     {
         "\\": "\\\\",
@@ -45,13 +47,18 @@ _ESCAPES = str.maketrans(
         "[": "\\[",
         "]": "\\]",
         "#": "\\#",
-        "|": "\\|",
-        "~": "\\~",
+        "|": "&#124;",
+        "~": "&#126;",
         "&": "&amp;",
         "<": "&lt;",
         ">": "&gt;",
     }
 )
+
+# GitHub links a bare `http:`, `https:`, `ftp:` or `www.` address it finds in the written line, escapes included, so an
+# escaped address would show its backslashes and link elsewhere. An entity for its `:` or `.` keeps it from that pass;
+# GitHub then links the address as written.
+_AUTOLINK_RE = re.compile(r"(?P<scheme>https?|ftp):|(?P<www>www)\.", re.IGNORECASE)
 
 # A value can open a block, as a list item's text or a paragraph: a leading `-` or `+` would open a list or a
 # thematic break, and `1.` or `1)` before a space a numbered list.
@@ -79,7 +86,7 @@ def escape(text: str) -> Markdown:
     @param text: Any value from the input.
     @return: The escaped text.
     """
-    line = " ".join(str(text).split()).translate(_ESCAPES)
+    line = _AUTOLINK_RE.sub(_escape_autolink, " ".join(str(text).split()).translate(_ESCAPES))
     return Markdown(_BLOCK_START_RE.sub(_escape_block_start, line))
 
 
@@ -145,10 +152,18 @@ def _escape_block_start(match: re.Match[str]) -> str:
     return match.group("number") + "\\" + match.group("delimiter")
 
 
+def _escape_autolink(match: re.Match[str]) -> str:
+    if match.group("scheme"):
+        return match.group("scheme") + "&#58;"
+    return match.group("www") + "&#46;"
+
+
 def _link(link: Link) -> Markdown:
     """A link to a vetted URL or to an entity's anchor; with neither, its text alone."""
     if link.href is not None:
-        return Markdown(f"[{escape(link.text)}]({quote(link.href, safe=_URL_SAFE)})")
+        # A renderer reads an entity in a destination as its character, `&#64;` as `@`; `&amp;` keeps each `&` one.
+        destination = quote(link.href, safe=_URL_SAFE).replace("&", "&amp;")
+        return Markdown(f"[{escape(link.text)}]({destination})")
     if link.anchor is not None:
         return _anchored(link.text, link.anchor)
     return escape(link.text)
@@ -158,9 +173,12 @@ def _links(links: Iterable[Link]) -> Markdown:
     return Markdown(", ".join(_link(link) for link in links))
 
 
-def _anchored(text: str, anchor: str) -> Markdown:
+def _anchored(text: str, anchor: Optional[str]) -> Markdown:
     """`text` linked to `#anchor`, an anchor the presentation derived from an entity id."""
-    if not _ANCHOR_RE.match(anchor):
+    if anchor is None:
+        raise UndefinedError("a template linked to an anchor the model leaves empty")
+    # `str` of a key the model lacks raises `UndefinedError`, so it fails as `TEMPLATE_KEY_MISSING`.
+    if not _ANCHOR_RE.match(str(anchor)):
         raise ValueError(f"not an entity anchor: {anchor!r}")
     return Markdown(f"[{escape(text)}](#{anchor})")
 

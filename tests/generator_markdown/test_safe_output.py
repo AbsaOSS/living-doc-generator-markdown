@@ -26,7 +26,7 @@ from living_doc_utilities.authoring.url_policy import safe_href
 from living_doc_utilities.contracts import generator_ready
 from pydantic import BaseModel
 
-from tests.samples import CONTRACTS, VIEWS, heading_anchors, heading_texts, rendered, sample, tokens
+from tests.samples import CONTRACTS, VIEWS, heading_anchors, heading_texts, plain_text, rendered, sample, tokens
 
 MARKER = "INJECTED"
 
@@ -52,6 +52,13 @@ HOSTILE_URLS = [
     " JaVaScRiPt:alert(1)",
     "vbscript:msgbox(1)",
     "https://example.com/ok) [INJECTED-LINK](javascript:alert(1)",
+    # Kept by `safe_href`, so linked: raw HTML in a URL.
+    'https://example.com/"><script>alert(1)</script><img src=x onerror=alert(1)>',
+    " https://evil.example/leading-space",
+    "\x01https://evil.example/control",
+    "https://example.com/surrogate\ud83d",
+    "https://good.example&#64;evil.example/",
+    "https://[TODO]/issue/42",
 ]
 
 # Fields the presentation keys on: ids and relations, which anchors and links are built from, and the warning code
@@ -75,44 +82,59 @@ _KEPT = {
 _URLS = {"url", "source_url", "source"}
 
 
-def hostile(document: Any) -> Any:
-    """A copy of `document` with every other text and URL field hostile."""
+def hostile(document: Any, url: str = HOSTILE_URLS[0]) -> Any:
+    """A copy of `document` with every other text field hostile, and every URL field `url`."""
     copy = document.model_copy(deep=True)
-    _make_hostile(copy, count(), count())
+    _make_hostile(copy, count(), url)
     return copy
 
 
-def _make_hostile(model: BaseModel, texts: Iterator[int], urls: Iterator[int]) -> None:
+def _make_hostile(model: BaseModel, texts: Iterator[int], url: str) -> None:
     for name, field in type(model).model_fields.items():
         if name in _KEPT or get_origin(field.annotation) is Literal:
             continue
-        setattr(model, name, _hostile_value(name, getattr(model, name), texts, urls))
+        setattr(model, name, _hostile_value(name, getattr(model, name), texts, url))
 
 
-def _hostile_value(name: str, value: Any, texts: Iterator[int], urls: Iterator[int]) -> Any:
+def _hostile_value(name: str, value: Any, texts: Iterator[int], url: str) -> Any:
     if isinstance(value, BaseModel):
-        _make_hostile(value, texts, urls)
+        _make_hostile(value, texts, url)
         return value
     if isinstance(value, str):
         if name in _URLS:
-            return HOSTILE_URLS[next(urls) % len(HOSTILE_URLS)]
+            return url
         return HOSTILE_TEXTS[next(texts) % len(HOSTILE_TEXTS)]
     if isinstance(value, list):
-        return [_hostile_value(name, item, texts, urls) for item in value]
+        return [_hostile_value(name, item, texts, url) for item in value]
     if isinstance(value, dict):
-        return {key: _hostile_value(name, item, texts, urls) for key, item in value.items()}
+        return {key: _hostile_value(name, item, texts, url) for key, item in value.items()}
     return value
 
 
-@pytest.fixture(name="hostile_markdown", params=[(c, v) for c in CONTRACTS for v in VIEWS], ids=lambda p: "-".join(p))
+# Each hostile URL in every URL field of each document, in each view.
+@pytest.fixture(
+    name="hostile_markdown",
+    params=[(c, v, u) for c in CONTRACTS for v in VIEWS for u in HOSTILE_URLS],
+    ids=lambda p: f"{p[0]}-{p[1]}-url{HOSTILE_URLS.index(p[2])}",
+)
 def _hostile_markdown(request) -> str:
-    contract_id, view = request.param
-    return rendered(hostile(sample(contract_id, view)), title=HOSTILE_TEXTS[0])
+    contract_id, view, url = request.param
+    return rendered(hostile(sample(contract_id, view), url), title=HOSTILE_TEXTS[0])
 
 
 def test_the_hostile_fixture_reaches_every_document(hostile_markdown):
     # Assert: the hostile values are rendered, as text, so the checks below look at them.
     assert MARKER in hostile_markdown
+
+
+@pytest.mark.parametrize("view", VIEWS)
+@pytest.mark.parametrize("url", HOSTILE_URLS)
+def test_each_hostile_url_reaches_a_rendered_url_field(view, url):
+    # Act: a User Story's linked issue shows its URL as its text, linked or not.
+    text = plain_text(rendered(hostile(sample(generator_ready.CONTRACT_ID, view), url)))
+
+    # Assert
+    assert f"Linked issue: {' '.join(url.split())}" in text or f">{' '.join(url.split())}" in text
 
 
 def test_no_raw_html_reaches_the_markdown(hostile_markdown):

@@ -48,15 +48,23 @@ def write_output(output_path: str, document_type: DocumentType, markdown: str, r
     @param markdown: The document.
     @param report: The run report.
     @return: The document's path, then the run report's.
-    @raise OutputError: A file or the directory cannot be written.
+    @raise OutputError: A file or the directory cannot be written, or the document holds text UTF-8 cannot encode.
     """
     directory = Path(output_path)
     written = [directory / document_file_name(document_type), directory / run_report_file_name(document_type)]
     try:
+        # Encoded before any file is opened: an input can hold a lone surrogate, which UTF-8 cannot encode.
+        payloads = [markdown.encode("utf-8"), (json.dumps(report, indent=2, ensure_ascii=False) + "\n").encode("utf-8")]
+    except UnicodeEncodeError as error:
+        raise OutputError(
+            f"Input `{OUTPUT_PATH}` is {output_path!r}, which is not written: the document holds text UTF-8 cannot "
+            f"encode ({error.reason})."
+        ) from error
+    try:
         directory.mkdir(parents=True, exist_ok=True)
-        # Explicit newline: text mode would write CRLF on Windows.
-        written[0].write_text(markdown, encoding="utf-8", newline="\n")
-        written[1].write_text(json.dumps(report, indent=2, ensure_ascii=False) + "\n", encoding="utf-8", newline="\n")
+        # Bytes, so no file is written with CRLF on Windows.
+        for path, payload in zip(written, payloads, strict=True):
+            path.write_bytes(payload)
     except OSError as error:
         # `!r` keeps a path with a line break on the one line the run fails with.
         raise OutputError(

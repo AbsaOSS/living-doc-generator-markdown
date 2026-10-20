@@ -24,6 +24,7 @@ can move into `living-doc-utilities` without a caller seeing a change.
 """
 
 import re
+from collections import Counter
 from dataclasses import dataclass
 from typing import Any, Callable, Optional, Sequence, Union
 
@@ -71,9 +72,13 @@ _GROUPS = (
     ("DocumentedFunctionality", "Functionalities"),
 )
 
-# A nested item, as a parser keeps it in its parent's string: `- ` after the line's indent.
-_NESTED_ITEM_RE = re.compile(r"^-(?: +(?P<text>.*))?$")
+# A nested item, as a parser keeps it in its parent's string: `- ` or `-<TAB>` after the line's indent.
+_NESTED_ITEM_RE = re.compile(r"^-(?:[ \t]+(?P<text>.*))?$")
 _BLANK_LINE_RE = re.compile(r"\n[ \t]*\n")
+
+# A URL with a control character: `urlsplit`, and so `safe_href`, reads it without the character, a renderer with it.
+# Or with a lone surrogate, which JSON can carry and no URL can encode.
+_CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\ud800-\udfff]")
 
 SourceDocument = Union[GeneratorReadyResult, UiTestCatalogResult, CoverageMatrixResult]
 
@@ -180,7 +185,7 @@ class EntityView:
     """One User Story, Feature or Functionality."""
 
     id: str
-    anchor: str
+    anchor: Optional[str]
     title: str
     badges: tuple[str, ...]
     inner: InnerOnly
@@ -301,7 +306,7 @@ class CoverageEntity:
     """One User Story or Functionality and its rows."""
 
     id: str
-    anchor: str
+    anchor: Optional[str]
     title: str
     badges: tuple[str, ...]
     summary: Summary
@@ -370,6 +375,7 @@ def _technical_project(document: GeneratorReadyResult, title: str) -> TechnicalP
     view = document.document.view
     entities = document.content.entities
     held = {entity.entity_id for entity in entities}
+    anchors = _anchors(held)
     shown = _not_loaded_warnings(document.warnings) if view == INNER else []
     under = {
         entity_id: tuple(_not_loaded(warning) for warning in shown if warning.entity_id == entity_id)
@@ -388,7 +394,7 @@ def _technical_project(document: GeneratorReadyResult, title: str) -> TechnicalP
         ),
         groups=_groups(
             entities,
-            lambda entity: _entity_view(entity, view, held, under[entity.entity_id]),
+            lambda entity: _entity_view(entity, view, anchors, under[entity.entity_id]),
             lambda entity: entity.type,
         ),
         not_loaded=tuple(_not_loaded(warning) for warning in shown if warning.entity_id not in held),
@@ -407,23 +413,23 @@ def _groups(
     return tuple(groups)
 
 
-def _entity_view(entity: Entity, view: str, held: set[str], not_loaded: tuple[NotLoaded, ...]) -> EntityView:
+def _entity_view(entity: Entity, view: str, anchors: dict[str, str], not_loaded: tuple[NotLoaded, ...]) -> EntityView:
     return EntityView(
         id=entity.entity_id,
-        anchor=anchor(entity.entity_id),
+        anchor=anchors.get(entity.entity_id),
         title=entity.title,
         badges=_entity_badges(entity, view),
         inner=_inner_only(entity, not_loaded) if view == INNER else InnerOnly((), None, (), ()),
         body=EntityBody(
             paragraphs=_paragraphs(entity.narrative) + _paragraphs(entity.purpose),
-            facts=_entity_facts(entity, held),
+            facts=_entity_facts(entity, anchors),
             outlines=_present_outlines(
                 ("Business value", entity.business_value),
                 ("Preconditions", entity.preconditions),
                 ("Not in scope", entity.not_in_scope),
                 ("Notes", entity.notes),
             ),
-            pages=tuple(_page(page, held) for page in entity.pages),
+            pages=tuple(_page(page, anchors) for page in entity.pages),
             criteria=tuple(_criterion(criterion) for criterion in entity.acceptance_criteria),
         ),
     )
@@ -467,7 +473,7 @@ def _stub_text(stub_reason: str) -> str:
     return f"{STUB_PREFIX}: {stub_reason}"
 
 
-def _entity_facts(entity: Entity, held: set[str]) -> tuple[Fact, ...]:
+def _entity_facts(entity: Entity, anchors: dict[str, str]) -> tuple[Fact, ...]:
     """Every one-line field an entity carries, in a fixed order; an empty field is left out."""
     facts = [
         Fact(label="Source", values=(_source_link(entity.source_ref),)),
@@ -476,13 +482,13 @@ def _entity_facts(entity: Entity, held: set[str]) -> tuple[Fact, ...]:
         _fact("Surface", [entity.surface_type]),
         _fact("Type", [entity.func_type]),
         _fact("Owners", entity.owners),
-        _relation("Parent", [entity.parent], held),
-        _relation("User stories", entity.user_stories, held),
-        _relation("Functionalities", entity.functionalities, held),
-        _relation("Feature dependencies", entity.feature_dependencies, held),
+        _relation("Parent", [entity.parent], anchors),
+        _relation("User stories", entity.user_stories, anchors),
+        _relation("Functionalities", entity.functionalities, anchors),
+        _relation("Feature dependencies", entity.feature_dependencies, anchors),
         _fact("External dependencies", entity.external_dependencies),
         _fact("Wizard steps", entity.wizard_steps),
-        _relation("Superseded by", [entity.superseded_by], held),
+        _relation("Superseded by", [entity.superseded_by], anchors),
         _fact("Rationale", [entity.rationale]),
     ]
     return tuple(fact for fact in facts if fact.values)
@@ -500,8 +506,8 @@ def _tracker(entity: Entity) -> tuple[Fact, ...]:
     return tuple(fact for fact in facts if fact.values)
 
 
-def _page(page: PageRef, held: set[str]) -> Page:
-    facts = (_fact("Owners", page.owners), _relation("Functionalities", page.functionalities, held))
+def _page(page: PageRef, anchors: dict[str, str]) -> Page:
+    facts = (_fact("Owners", page.owners), _relation("Functionalities", page.functionalities, anchors))
     return Page(
         route=page.route,
         page_object=page.page_object,
@@ -752,14 +758,41 @@ def _coverage_matrix_manifest(presentation: CoverageMatrix) -> dict[str, Any]:
 # ---------------------------------------------------------------------------
 
 
-def anchor(entity_id: str) -> str:
-    """An entity's place in its document: the anchor a renderer derives from a heading that holds the id alone."""
-    return re.sub(r"[^a-z0-9_ -]", "", entity_id.lower()).replace(" ", "-")
+def anchor(entity_id: str) -> Optional[str]:
+    """
+    An entity's place in its document: the anchor every renderer derives from a heading that holds the id alone, as
+    printed, its runs of white space one space. None for an id outside ASCII, whose anchor renderers derive
+    differently, or one whose anchor would be empty.
+    """
+    if not entity_id.isascii():
+        return None
+    return re.sub(r"[^a-z0-9_ -]", "", " ".join(entity_id.split()).lower()).replace(" ", "-") or None
+
+
+def _anchors(entity_ids: set[str]) -> dict[str, str]:
+    """The ids a link can point at, with their anchors: an id without one, or sharing it, is left out, as a renderer
+    would number the second heading's."""
+    found = {entity_id: anchor(entity_id) for entity_id in entity_ids}
+    shared = Counter(found.values())
+    return {entity_id: place for entity_id, place in found.items() if place is not None and shared[place] == 1}
 
 
 def _url_link(text: str, url: Optional[str]) -> Link:
-    """`text` linked to `url` only when `safe_href` keeps it; a rejected link shows as its text."""
-    return Link(text=text, href=safe_href(url) if url else None)
+    """`text` linked to `url` only when `safe_href` keeps it as written; a rejected link shows as its text."""
+    return Link(text=text, href=_kept_href(url) if url else None)
+
+
+def _kept_href(url: str) -> Optional[str]:
+    """`url` when `safe_href` keeps it and a renderer reads it as `safe_href` did; otherwise None."""
+    if url != url.strip() or _CONTROL_RE.search(url):
+        # `urlsplit` strips them before `safe_href` looks: ` javascript:x` is checked as `javascript:x`, but a
+        # renderer writes it as the relative `%20javascript:x`.
+        return None
+    try:
+        return safe_href(url)
+    except ValueError:
+        # `urlsplit` cannot read the host, as in `https://[TODO]/issue/42`.
+        return None
 
 
 def _fact(label: str, values: Sequence[Optional[str]], link: bool = False) -> Fact:
@@ -767,12 +800,10 @@ def _fact(label: str, values: Sequence[Optional[str]], link: bool = False) -> Fa
     return Fact(label=label, values=tuple(_url_link(v, v) if link else Link(text=v) for v in values if v))
 
 
-def _relation(label: str, targets: Sequence[Optional[str]], held: set[str]) -> Fact:
-    """Entity ids linked to their place in this document; an id the document does not hold shows as text."""
-    return Fact(
-        label=label,
-        values=tuple(Link(text=t, anchor=anchor(t) if t in held else None) for t in targets if t),
-    )
+def _relation(label: str, targets: Sequence[Optional[str]], anchors: dict[str, str]) -> Fact:
+    """Entity ids linked to their place in this document; an id the document does not hold, or that has no anchor of
+    its own, shows as text."""
+    return Fact(label=label, values=tuple(Link(text=t, anchor=anchors.get(t)) for t in targets if t))
 
 
 def _paragraphs(text: Optional[str]) -> tuple[str, ...]:

@@ -41,6 +41,8 @@ def test_the_counts_come_from_the_input_model_and_equal_its_cardinality(write_sa
     cardinality = document.metadata.stats.cardinality.model_dump()
     assert counts == {name: cardinality[name] for name in COUNTED}
     assert any(counts[name] for name in ("entities", "scenarios"))
+    # The in-memory sample's `metadata.stats` are all zero: counts copied from them would differ.
+    assert input_counts(sample(contract_id)) == counts
 
 
 @pytest.mark.parametrize("view", VIEWS)
@@ -131,6 +133,22 @@ def test_the_document_and_its_run_report_are_written_into_the_output_directory(t
     assert written[0].read_bytes() == b"# Doc\n"
     assert json.loads(written[1].read_text(encoding="utf-8")) == {"view": "inner"}
     assert written[1].read_bytes().endswith(b"}\n")
+
+
+def test_a_document_utf8_cannot_encode_fails_with_one_line_and_writes_nothing(tmp_path):
+    # Arrange: JSON can carry a lone surrogate, `"\ud83d"`, into any text field.
+    output = tmp_path / "out"
+
+    # Act
+    with pytest.raises(OutputError) as error:
+        write_output(str(output), DocumentType.TECHNICAL_PROJECT, "# Truncated \ud83d\n", {})
+
+    # Assert
+    assert str(error.value) == (
+        f"Input `output-path` is {str(output)!r}, which is not written: the document holds text UTF-8 cannot "
+        "encode (surrogates not allowed)."
+    )
+    assert not output.exists()
 
 
 def test_an_output_path_that_cannot_be_a_directory_fails_with_one_line_naming_the_input(tmp_path):

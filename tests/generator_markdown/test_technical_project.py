@@ -21,7 +21,7 @@ from living_doc_utilities.contracts.common import AcceptanceCriterion
 from living_doc_utilities.contracts.envelope import ContractWarning
 
 from generator_markdown.renderer import escape
-from tests.samples import VIEWS, rendered, sample, tokens
+from tests.samples import VIEWS, heading_anchors, rendered, sample, tokens
 
 CONTRACT = generator_ready.CONTRACT_ID
 SOURCE_URL = "https://github.com/absaoss/payments-service/blob/4f2c1e9a7b3d5f6081a2c3d4e5f60718293a4b5c/features/checkout.feature"
@@ -257,6 +257,50 @@ def test_a_relation_to_an_id_the_document_does_not_hold_shows_the_id_unlinked(vi
     assert "(#us-010)" not in markdown
 
 
+@pytest.mark.parametrize("entity_id", ["機能", "...", "US-Ü1"])
+def test_an_id_whose_anchor_renderers_derive_differently_or_not_at_all_shows_unlinked(entity_id):
+    # Arrange: the contract gives an entity id no pattern.
+    document = sample(CONTRACT)
+    _entity(document, "US-001").entity_id = entity_id
+    _entity(document, "FEAT-001").user_stories = [entity_id]
+
+    # Act
+    markdown = rendered(document)
+
+    # Assert
+    assert f"    - {escape(entity_id)} Checkout with a saved payment method\n" in markdown
+    assert f"- **User stories:** {escape(entity_id)}\n" in markdown
+
+
+def test_an_id_with_a_run_of_spaces_links_to_the_anchor_of_its_printed_heading():
+    # Arrange
+    document = sample(CONTRACT)
+    _entity(document, "US-001").entity_id = "US  001"
+    _entity(document, "FEAT-001").user_stories = ["US  001"]
+
+    # Act
+    markdown = rendered(document)
+
+    # Assert
+    assert "\n### US 001\n" in markdown
+    assert "- **User stories:** [US 001](#us-001)\n" in markdown
+    assert "us-001" in heading_anchors(markdown)
+
+
+def test_two_ids_sharing_an_anchor_both_show_unlinked():
+    # Arrange: a renderer numbers the second heading's anchor.
+    document = sample(CONTRACT)
+    _entity(document, "US-002").entity_id = "us-001"
+    _entity(document, "FEAT-001").user_stories = ["US-001", "us-001"]
+
+    # Act
+    markdown = rendered(document)
+
+    # Assert
+    assert "- **User stories:** US-001, us-001\n" in markdown
+    assert "(#us-001)" not in markdown
+
+
 @pytest.mark.parametrize(
     ("field", "label"),
     [
@@ -287,6 +331,18 @@ def test_a_bullet_list_entry_holding_a_nested_line_renders_as_a_nested_list(fiel
     assert all("- Child" not in t.content for t in tokens(markdown) if t.type == "inline")
 
 
+def test_a_nested_item_after_a_tab_renders_as_a_nested_list():
+    # Arrange: a parser keeps an authored `*<TAB>Child.` as `-<TAB>Child.`.
+    document = sample(CONTRACT)
+    _entity(document, "US-001").business_value = ["Parent.\n  -\tChild."]
+
+    # Act
+    markdown = rendered(document)
+
+    # Assert
+    assert "**Business value**\n\n- Parent.\n    - Child.\n" in markdown
+
+
 @pytest.mark.parametrize(
     ("field", "label"), [("preconditions", "Also requires"), ("not_in_scope", "Also not in scope")]
 )
@@ -306,8 +362,9 @@ def test_the_collector_warnings_naming_an_entity_show_under_it_with_a_link_to_th
     # Act
     block = _block(rendered(sample(CONTRACT, "inner")), "US-001")
 
-    # Assert
+    # Assert: before the first criterion's heading, so no criterion seems to hold them.
     assert "**Not loaded from the input**\n\n" in block
+    assert block.index("**Not loaded from the input**") < block.index("\n#### ")
     assert (
         "- `MALFORMED_AC` Acceptance criterion declares its variants more than once (Aspect, payment\\_field); "
         f"keep one 'Aspect:' or one keyword. (features/checkout.feature, [line 31]({SOURCE_URL}#L31))\n"
@@ -408,13 +465,14 @@ def test_a_warnings_context_ac_id_and_entity_id_are_never_shown():
     assert "entity=" not in markdown
 
 
+@pytest.mark.parametrize("entity_id", ["US-001", None, "US-999"])
 @pytest.mark.parametrize(
     "code", ["STALE_AC_REF", "PLANNED_AC_HAS_TESTS", "MISSING_INPUT", "URL_FETCH_REFUSED", "NOT_A_CODE"]
 )
-def test_a_warning_no_collector_emits_is_not_shown(code):
-    # Arrange
+def test_a_warning_no_collector_emits_is_not_shown(code, entity_id):
+    # Arrange: under an entity, or in the document's own block.
     document = sample(CONTRACT)
-    document.warnings = [ContractWarning(code=code, message="Not ours.", entity_id="US-001", line_no=3)]
+    document.warnings = [ContractWarning(code=code, message="Not ours.", entity_id=entity_id, line_no=3)]
 
     # Act
     markdown = rendered(document)

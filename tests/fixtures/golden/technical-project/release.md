@@ -21,7 +21,7 @@
 As a customer, I want to check out with a saved payment method, so that I can complete my purchase quickly.
 
 - **Source:** [GitHub 501](https://github.com/absaoss/payments-service/issues/501)
-- **Linked issue:** [https://github.com/absaoss/payments-service/issues/42](https://github.com/absaoss/payments-service/issues/42)
+- **Linked issue:** [https&#58;//github.com/absaoss/payments-service/issues/42](https://github.com/absaoss/payments-service/issues/42)
 - **Tags:** checkout, payments
 
 **Business value**

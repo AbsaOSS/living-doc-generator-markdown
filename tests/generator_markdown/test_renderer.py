@@ -42,7 +42,15 @@ def _template_root(tmp_path, document_type: str, template: str):
         ("12) item", "12\\) item"),
         ("2026-06-01", "2026-06-01"),
         ("a\nb\r\n\n  c", "a b c"),
-        ("*a* _b_ `c` ~d~ {e} |f| \\g & h", "\\*a\\* \\_b\\_ \\`c\\` \\~d\\~ \\{e\\} \\|f\\| \\\\g &amp; h"),
+        (
+            "*a* _b_ `c` ~d~ {e} |f| \\g & h",
+            "\\*a\\* \\_b\\_ \\`c\\` &#126;d&#126; \\{e\\} &#124;f&#124; \\\\g &amp; h",
+        ),
+        # GitHub would link a bare address from the escaped line, backslashes included.
+        (
+            "see https://a.example/x_y#z, HTTP://b.example and www.c.example",
+            "see https&#58;//a.example/x\\_y\\#z, HTTP&#58;//b.example and www&#46;c.example",
+        ),
     ],
 )
 def test_escape_keeps_a_value_on_one_line_as_text(text, markdown):
@@ -51,7 +59,18 @@ def test_escape_keeps_a_value_on_one_line_as_text(text, markdown):
 
 
 @pytest.mark.parametrize(
-    "text", ["<b>bold</b>", "[x](javascript:alert(1))", "# heading", "- item", "1. item", "*a* _b_ `c`", "&amp;"]
+    "text",
+    [
+        "<b>bold</b>",
+        "[x](javascript:alert(1))",
+        "# heading",
+        "- item",
+        "1. item",
+        "*a* _b_ `c`",
+        "&amp;",
+        "~d~ |f|",
+        "https://a.example/x_y#z and www.c.example",
+    ],
 )
 def test_an_escaped_value_reads_as_written_in_a_markdown_renderer(text):
     # Act
@@ -106,6 +125,11 @@ def test_a_template_printing_a_value_the_model_leaves_empty_fails_with_template_
     ("link", "markdown"),
     [
         (Link(text="a [b]", href="https://example.com/a b(c)"), "[a \\[b\\]](https://example.com/a%20b%28c%29)"),
+        # A renderer would read `&#64;` in a destination as `@`, and so another host.
+        (
+            Link(text="a", href="https://a.example&#64;b.example/?x=1&y=2"),
+            "[a](https://a.example&amp;#64;b.example/?x=1&amp;y=2)",
+        ),
         (Link(text="US-001", anchor="us-001"), "[US-001](#us-001)"),
         (Link(text="FEAT-002"), "FEAT-002"),
     ],
@@ -119,6 +143,21 @@ def test_a_link_is_written_with_its_destination_encoded(tmp_path, link, markdown
 
     # Assert
     assert text == f"{markdown}\n"
+
+
+@pytest.mark.parametrize("anchor", ["document.anchor", "none"])
+def test_a_template_linking_to_an_anchor_the_model_lacks_or_leaves_empty_fails_with_template_key_missing(
+    tmp_path, anchor
+):
+    # Arrange
+    root = _template_root(tmp_path, "coverage-matrix", f"{{{{ document.title | anchored({anchor}) }}}}\n")
+
+    # Act
+    with pytest.raises(ContractError) as error:
+        render(present(sample(coverage_matrix.CONTRACT_ID)), "coverage-matrix", root)
+
+    # Assert
+    assert error.value.code is Code.TEMPLATE_KEY_MISSING
 
 
 def test_an_anchor_that_no_entity_id_gives_is_refused(tmp_path):

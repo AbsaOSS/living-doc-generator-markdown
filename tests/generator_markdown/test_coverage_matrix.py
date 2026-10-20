@@ -35,8 +35,9 @@ def test_a_partially_covered_row_shows_covered_over_declared_before_its_breakdow
     # Act
     markdown = rendered(sample(CONTRACT, view))
 
-    # Assert
-    assert "| US-001-04 | active | `PARTIALLY COVERED` 1/3 | — |\n" in markdown
+    # Assert: its scenarios are its aspects', in the breakdown.
+    assert "| US-001-04 | active | `PARTIALLY COVERED` 1/3 | per aspect, below |\n" in markdown
+    assert "| US-001-01 | active | `COVERED` | per aspect, below |\n" in markdown
     breakdown = markdown.index("**US-001-04** `PARTIALLY COVERED` 1/3\n\n| payment\\_field | Status | Scenarios |\n")
     assert breakdown > markdown.index("| US-001-04 | active |")
 

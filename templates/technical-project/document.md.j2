@@ -9,7 +9,7 @@
 {% for group in document.groups %}
 - {{ group.heading }}
 {% for entity in group.entities %}
-    - {{ entity.id | anchored(entity.anchor) }} {{ entity.title }}
+    - {% if entity.anchor %}{{ entity.id | anchored(entity.anchor) }}{% else %}{{ entity.id }}{% endif %} {{ entity.title }}
 {% endfor %}
 {% endfor %}
 {% if document.not_loaded %}

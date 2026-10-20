@@ -37,7 +37,7 @@ Planned criteria are not counted.
 | Criterion | State | Status | Scenarios |
 |---|---|---|---|
 {% for row in entity.rows %}
-| {{ row.ac_id }} | {{ row.state }} | {{ row.status | code }}{% if row.fraction %} {{ row.fraction }}{% endif %} | {% if row.scenarios %}{{ row.scenarios | join(", ") }}{% else %}—{% endif %} |
+| {{ row.ac_id }} | {{ row.state }} | {{ row.status | code }}{% if row.fraction %} {{ row.fraction }}{% endif %} | {% if row.scenarios %}{{ row.scenarios | join(", ") }}{% elif row.aspects %}per aspect, below{% else %}—{% endif %} |
 {% endfor %}
 {% for row in entity.rows if row.aspects %}
 

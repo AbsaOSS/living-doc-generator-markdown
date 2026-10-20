@@ -22,7 +22,7 @@
 As a customer, I want to check out with a saved payment method, so that I can complete my purchase quickly.
 
 - **Source:** [GitHub 501](https://github.com/absaoss/payments-service/issues/501)
-- **Linked issue:** [https://github.com/absaoss/payments-service/issues/42](https://github.com/absaoss/payments-service/issues/42)
+- **Linked issue:** [https&#58;//github.com/absaoss/payments-service/issues/42](https://github.com/absaoss/payments-service/issues/42)
 - **Tags:** checkout, payments
 
 **Business value**
@@ -36,6 +36,11 @@ As a customer, I want to check out with a saved payment method, so that I can co
 **Not in scope**
 
 - Guest checkout.
+
+**Not loaded from the input**
+
+- `MALFORMED_AC` Acceptance criterion declares its variants more than once (Aspect, payment\_field); keep one 'Aspect:' or one keyword. (features/checkout.feature, [line 31](https://github.com/absaoss/payments-service/blob/4f2c1e9a7b3d5f6081a2c3d4e5f60718293a4b5c/features/checkout.feature#L31))
+- `UNPARSED_AC_LINE` Bullet 'device' is not a keyword: the description names no '\{device\}'. (features/checkout.feature, [line 17](https://github.com/absaoss/payments-service/blob/4f2c1e9a7b3d5f6081a2c3d4e5f60718293a4b5c/features/checkout.feature#L17))
 
 **Acceptance criteria**
 
@@ -73,11 +78,6 @@ The order summary shows the \{payment-field\} of the chosen saved card.
 A customer can remove a saved payment method at checkout.
 
 - **Aspect:** desktop, mobile
-
-**Not loaded from the input**
-
-- `MALFORMED_AC` Acceptance criterion declares its variants more than once (Aspect, payment\_field); keep one 'Aspect:' or one keyword. (features/checkout.feature, [line 31](https://github.com/absaoss/payments-service/blob/4f2c1e9a7b3d5f6081a2c3d4e5f60718293a4b5c/features/checkout.feature#L31))
-- `UNPARSED_AC_LINE` Bullet 'device' is not a keyword: the description names no '\{device\}'. (features/checkout.feature, [line 17](https://github.com/absaoss/payments-service/blob/4f2c1e9a7b3d5f6081a2c3d4e5f60718293a4b5c/features/checkout.feature#L17))
 
 ### US-002
 
