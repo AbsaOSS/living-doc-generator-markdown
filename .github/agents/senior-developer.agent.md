@@ -109,6 +109,6 @@ Repo specifics
   - The inputs `document-type`, `source-path`, `output-path`, `document-title` — named as `living-doc-generator-pdf` names them — and `verbose-logging`, as `living-doc-collector-gh` names it; Action output key `output-path`; default output directory `./output/generator-markdown`.
   - `INPUT_*` contract read only in `generator_markdown/action_inputs.py`, through `living_doc_utilities.github.utils.get_action_input`; `INPUT_VERBOSE_LOGGING` alone is read by `living_doc_utilities.logging_config.setup_logging()`.
   - Exit codes — `1` on every failure; no run exits `0` until rendering writes a document; no `2`–`5` taxonomy.
-  - The `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py` and `tests/test_main.py`.
+  - The `ActionInputError`, `SourceInputError` and `OutputError` messages asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py`, `tests/generator_markdown/test_run_report.py` and `tests/test_main.py`.
 - AI-free principle
   - Must keep every generate step deterministic — no LLM call anywhere in the runtime path.

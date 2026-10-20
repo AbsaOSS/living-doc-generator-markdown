@@ -16,3 +16,6 @@ pytest-mock==3.16.0
 
 # `tests/test_action_yml.py` parses `action.yml`.
 PyYAML==6.0.3
+
+# The rendering tests parse the written Markdown as CommonMark.
+markdown-it-py==4.2.0

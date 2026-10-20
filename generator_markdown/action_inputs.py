@@ -65,7 +65,8 @@ class ActionInputs:
         Read and validate the action inputs, stopping at the first invalid one, in `action.yml` order.
 
         @return: The validated inputs.
-        @raise ActionInputError: `document-type` or `source-path` is missing, or `document-type` is unknown.
+        @raise ActionInputError: `document-type` or `source-path` is missing, `document-type` is unknown, or
+            `output-path` holds a line break.
         """
         raw_document_type = get_action_input(DOCUMENT_TYPE).strip()
         if not raw_document_type:
@@ -84,6 +85,12 @@ class ActionInputs:
             raise ActionInputError(f"Input `{SOURCE_PATH}` is required: the path to the input JSON file.")
 
         output_path = get_action_input(OUTPUT_PATH).strip() or DEFAULT_OUTPUT_PATH
+        if "\n" in output_path or "\r" in output_path:
+            # The run sets the `output-path` output to this path, one `name=value` line in `$GITHUB_OUTPUT`.
+            raise ActionInputError(
+                f"Input `{OUTPUT_PATH}` is {output_path!r}, a path with a line break, which the `{OUTPUT_PATH}` "
+                "output cannot carry."
+            )
         return cls(
             document_type=document_type,
             source_path=source_path,

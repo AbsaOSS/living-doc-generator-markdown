@@ -1,0 +1,9 @@
+{#- One scenario, with the criteria it covers, its tags and its source. -#}
+- **{{ scenario.id }}** {{ scenario.title }}
+{% if scenario.covers %}
+    - **Covers:** {% for covered in scenario.covers %}{{ covered.ac_id }}{% if covered.aspect %} ({{ covered.aspect }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor +%}
+{% endif %}
+{% if scenario.tags %}
+    - **Tags:** {{ scenario.tags | join(", ") }}
+{% endif %}
+    - **Source:** {{ scenario.source | link }}

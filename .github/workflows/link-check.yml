@@ -90,6 +90,7 @@ jobs:
             --include-fragments
             --max-retries 3
             --retry-wait-time 5
+            --exclude-path 'tests/fixtures/golden/'
             './**/*.md'
           fail: true
         env:

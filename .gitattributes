@@ -1,0 +1,2 @@
+# The golden snapshots are compared byte for byte, so every checkout keeps their LF line endings.
+tests/fixtures/golden/** text eol=lf

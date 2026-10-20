@@ -116,3 +116,20 @@ def test_a_missing_source_path_names_the_input(valid_inputs, monkeypatch, source
 
     # Assert
     assert str(error.value) == "Input `source-path` is required: the path to the input JSON file."
+
+
+@pytest.mark.parametrize("output_path", ["out\nput", "out\rput", "out/docs\nfoo=bar"])
+def test_an_output_path_with_a_line_break_names_the_input_on_one_line(valid_inputs, monkeypatch, output_path):
+    # Arrange: the run would write it as the `output-path` output, one `name=value` line.
+    monkeypatch.setenv("INPUT_OUTPUT_PATH", output_path)
+
+    # Act
+    with pytest.raises(ActionInputError) as error:
+        ActionInputs.from_environment()
+
+    # Assert
+    message = str(error.value)
+    assert message == (
+        f"Input `output-path` is {output_path!r}, a path with a line break, which the `output-path` output cannot carry."
+    )
+    assert "\n" not in message

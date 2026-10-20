@@ -1,0 +1,30 @@
+{#- A ui-test-catalog document: per `.feature` file, its scenarios by what they link to. No field depends on the view. -#}
+# {{ document.title }}
+
+*View: {{ document.view }}*
+{% for feature_file in document.feature_files %}
+
+## {{ feature_file.name }}
+{% if feature_file.user_stories %}
+
+### Linked to a User Story
+{% for group in feature_file.user_stories %}
+{% include "ui-test-catalog/linked-group.md.j2" %}
+{% endfor %}
+{% endif %}
+{% if feature_file.functionalities %}
+
+### Linked to a Functionality
+{% for group in feature_file.functionalities %}
+{% include "ui-test-catalog/linked-group.md.j2" %}
+{% endfor %}
+{% endif %}
+{% if feature_file.unlinked %}
+
+### Unlinked
+
+{% for scenario in feature_file.unlinked %}
+{% include "ui-test-catalog/scenario.md.j2" %}
+{% endfor %}
+{% endif %}
+{% endfor %}

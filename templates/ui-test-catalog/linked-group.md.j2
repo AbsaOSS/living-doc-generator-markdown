@@ -1,0 +1,7 @@
+{# The scenarios one file links to one entity. #}
+
+**{{ group.entity_id }}**
+
+{% for scenario in group.scenarios %}
+{% include "ui-test-catalog/scenario.md.j2" %}
+{% endfor %}

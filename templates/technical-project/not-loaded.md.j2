@@ -1,0 +1,2 @@
+{#- One collector warning: code, message, and its file and line, the line linked to the source. -#}
+- {{ item.code | code }} {{ item.message }}{% if item.location %} ({{ item.location | links }}){% endif +%}

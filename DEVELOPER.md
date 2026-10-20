@@ -2,8 +2,8 @@
 
 ## Purpose
 
-Anyone who changes this repository reads this page. It covers setup, the quality gates, a debug run, the rules
-the action's venv follows, and what CI runs.
+Anyone who changes this repository reads this page. It covers setup, the quality gates, the design rules the
+rendering keeps, a debug run, the rules the action's venv follows, and what CI runs.
 
 Read before: [README](README.md)
 
@@ -11,6 +11,7 @@ Read before: [README](README.md)
 
 - [Setup](#setup)
 - [Gates](#gates)
+- [Design rules](#design-rules)
 - [Debug run](#debug-run)
 - [Action venv](#action-venv)
 - [CI](#ci)
@@ -23,8 +24,8 @@ Read before: [README](README.md)
 
 | File | What it holds | Who installs it |
 |---|---|---|
-| `requirements.txt` | Runtime only: `living-doc-utilities`, the one package `main.py` and `generator_markdown/` import | `action.yml`, into its venv, on every run |
-| `requirements-dev.txt` | `-r requirements.txt`, the gate and test tools, and `PyYAML` for `tests/test_action_yml.py` | `make install` and `test.yml` |
+| `requirements.txt` | Runtime only: `living-doc-utilities` and `Jinja2`, the packages `main.py` and `generator_markdown/` import | `action.yml`, into its venv, on every run |
+| `requirements-dev.txt` | `-r requirements.txt`, the gate and test tools, `PyYAML` for `tests/test_action_yml.py` and `markdown-it-py` for the rendering tests | `make install` and `test.yml` |
 
 - The supported floor is 3.10, as `pyproject.toml` `requires-python` states; [CI](#ci) says which versions are tested.
 - A test, lint or type tool in `requirements.txt` would download on every run of every caller; `make qa` fails on one.
@@ -51,12 +52,32 @@ stops at the first failure. Run it before opening a pull request.
 - Black, ruff and mypy read their settings from `pyproject.toml`; Pylint reads `.pylintrc`. `make help` lists
   every target.
 
+## Design rules
+
+The rendering keeps three rules. Each is held by one module, and a test fails when it breaks.
+
+| Rule | Module | Test |
+|---|---|---|
+| One presentation module maps an input model and its `document.view` to a presentation model of plain data; a template under `templates/<document-type>/` only renders it. Its later move into `living-doc-utilities` changes nothing a caller sees. | `generator_markdown/presentation.py` | `tests/generator_markdown/test_golden.py`, against `tests/fixtures/golden/` |
+| Every run report carries the render manifest: per view, the entity ids, acceptance criteria, aspects and badges the document shows. | `generator_markdown/run_report.py`, from `presentation.py`'s `render_manifest()` | `tests/generator_markdown/test_run_report.py` |
+| Every link passes `living_doc_utilities.authoring.url_policy.safe_href`, and every printed value is escaped, so no raw HTML, link, heading or list from an input reaches the Markdown. GitHub still links a bare address in authored text by itself, to the address as written. | `generator_markdown/presentation.py` for links, `generator_markdown/renderer.py` for escaping | `tests/generator_markdown/test_safe_output.py` |
+
+- The presentation module imports only the `living-doc-utilities` contract models and returns frozen dataclasses: no
+  Jinja type, no file access.
+  - Why: a move must change neither its input nor its output, which the golden snapshots compare byte for byte.
+- A link inside the document points to an anchor the presentation derives from an entity id, `[a-z0-9_-]` only; an
+  entity's heading holds its id alone, so every renderer derives the same anchor. An id outside ASCII, or one whose
+  anchor would be empty or another id's, shows unlinked, as an id the document does not hold does.
+- After an intended change to the output, rewrite the snapshots with
+  `UPDATE_GOLDEN=1 pytest tests/generator_markdown/test_golden.py`, and review their diff with the change.
+
 ## Debug run
 
 ```shell
 export INPUT_DOCUMENT_TYPE=technical-project            # required: technical-project, ui-test-catalog or coverage-matrix
 export INPUT_SOURCE_PATH=generator-ready.json           # required: the document type's input file
 export INPUT_OUTPUT_PATH=./output/generator-markdown    # the default
+export INPUT_DOCUMENT_TITLE='Payments service'          # optional: the document's title
 export INPUT_VERBOSE_LOGGING=true                       # optional: DEBUG logs; default false
 python3 main.py
 ```
@@ -71,8 +92,8 @@ python3 main.py
   python3 tools/write_sample_inputs.py . generator-ready
   ```
 
-- Rendering is not implemented yet: a run with a valid input reads it, then ends with
-  `Rendering is not implemented yet: …` and exit code 1, and writes nothing.
+- A run with a valid input writes `<document-type>.md` and `<document-type>.run-report.json` into `output-path` and
+  exits 0. Without `GITHUB_OUTPUT`, as outside GitHub Actions, it sets no `output-path` output and logs that once.
 
 ## Action venv
 
@@ -105,12 +126,16 @@ links.
   failed or cancelled one.
   - Why: a required check must report on every pull request, also on one that changed no Python.
 - The gates run when a Python-related file changed: `*.py`, `requirements.txt`, `requirements-dev.txt`,
-  `pyproject.toml`, `Makefile`, `.pylintrc`, `action.yml`, `test.yml` or `tests/fixtures/`.
+  `pyproject.toml`, `Makefile`, `.pylintrc`, `action.yml`, `test.yml`, `templates/` or `tests/fixtures/`.
+  - `templates/` and the golden snapshots under `tests/fixtures/` are in the list because a change to either changes
+    the rendered output the tests compare.
   - `action.yml` is in the list because `tests/test_action_yml.py` reads it.
   - On a pull request a renamed file counts by its old path too, so moving a file out of that set still runs the
     tests.
 - A manual run runs every gate, and `link-check.yml` checks every page.
   - Why: a manual run is a request to re-check the branch, whatever its last commit touched.
+- `link-check.yml` skips the golden snapshots under `tests/fixtures/golden/`.
+  - Why: they render the test samples, whose tracker and repository links are made up and do not resolve.
 - `format-check`, `lint` and `types` run once, on Python 3.10.
   - Why: they give the same result on every interpreter, and on the floor a syntax newer than 3.10 fails.
 - `make coverage` runs on Python 3.10 to 3.14.
@@ -118,10 +143,10 @@ links.
 - `Contract Checks` runs `make no-vendored-schemas runtime-requirements` on every change.
   - Why: the checks read git's index and `requirements.txt`, not only Python.
   - With the static checks and the tests it covers every `make qa` target, so a local run and CI never drift.
-- Each `integration_test.yml` job runs the action through `uses: ./` with `continue-on-error`, then asserts on the
-  venv and on the failure.
-  - Why: rendering is not implemented yet, so a run with a valid input fails on purpose; a step that succeeded would
-    mean a run passed for a document it never wrote.
+- The isolation and rebuild jobs run the action through `uses: ./`, so a failed run fails the job, then assert on the
+  venv, on the files written into `output-path` and on the `output-path` output. The 3.9 job runs it with
+  `continue-on-error` and asserts the failure.
+  - Why: a run that passed without writing its document and run report would be a broken action.
 - The jobs need only `contents: read`: they run the repository's code and make no GitHub API call.
 - Each job first writes the inputs it reads with `tools/write_sample_inputs.py` (`living-doc-utilities`'
   `full_sample()` and `write_artifact`), in a throwaway venv built from `requirements.txt`.
@@ -131,11 +156,11 @@ links.
   pydantic before and after. It runs on 3.12, a version pydantic 1.x publishes wheels for.
   - Why: `living-doc-utilities` cannot run on pydantic 1, so an action on that interpreter would fail its import
     check, and an action installing into it would replace that pydantic.
-- It proves the reuse by `pyvenv.cfg`'s mtime, unchanged between its two runs of the action.
+- It proves the reuse by `pyvenv.cfg`'s mtime, unchanged across its runs of the action.
   - Why: `python -m venv` without `--clear` keeps the files already in the directory, so a marker file survives a
     re-create; `pyvenv.cfg` is rewritten on every create.
-- It replays `main.py` on the action's venv, as the action runs it, on each of its two inputs, and expects the input
-  read and the not-implemented line.
+- It renders all three document types, the third with a `document-title`. It then replays `main.py` on the action's
+  venv, as the action runs it, on each input, and expects the input read, the run report and the `output-path` line.
   - Why: a failed install would stop on an import, and a wrong input on reading it.
 - The rebuild job runs the action on 3.12, switches `setup-python` to 3.11, runs it again, and asks the venv's own
   interpreter for its version.

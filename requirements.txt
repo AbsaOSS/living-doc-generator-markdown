@@ -1,2 +1,3 @@
 # Runtime only: the action installs this file. Development tools go in `requirements-dev.txt`.
-living-doc-utilities==0.6.0
+Jinja2==3.1.6
+living-doc-utilities==0.7.0

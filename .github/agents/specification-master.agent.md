@@ -104,7 +104,7 @@ Repo specifics
   - The inputs `document-type`, `source-path`, `output-path`, `document-title`, named as `living-doc-generator-pdf` names them, so the two generators stay interchangeable, and `verbose-logging`, as `living-doc-collector-gh` names it.
   - Action output key `output-path` (declared in `action.yml` from the run step `liv-doc-generator`); default output directory `./output/generator-markdown`.
   - Exit codes — `1` on every failure; no `2`–`5` taxonomy.
-  - The `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py` and `tests/test_main.py`.
+  - The `ActionInputError`, `SourceInputError` and `OutputError` messages asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py`, `tests/generator_markdown/test_run_report.py` and `tests/test_main.py`.
   - The documents and the run report rendered from the `living-doc-utilities` contracts `generator-ready`, `ui-test-catalog` and `coverage-matrix`.
 - High-risk areas
   - `INPUT_*` parsing in `generator_markdown/action_inputs.py` — missing, empty and malformed values.

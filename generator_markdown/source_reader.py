@@ -20,13 +20,11 @@ contract its document type renders, and turns every way that read fails into one
 """
 
 import json
-import os
 import re
 from pathlib import Path
 from typing import Union, cast
 
 from living_doc_utilities.contracts.codes import Code, ContractError
-from living_doc_utilities.contracts.compat import installed_utilities_version
 from living_doc_utilities.contracts.coverage_matrix import CoverageMatrixResult
 from living_doc_utilities.contracts.generator_ready import GeneratorReadyResult
 from living_doc_utilities.contracts.io import read_artifact
@@ -90,14 +88,6 @@ def read_source(document_type: DocumentType, source_path: str) -> SourceDocument
     except IsADirectoryError as error:
         raise SourceInputError(f"{named}, a directory, not a JSON file.") from error
     except OSError as error:
-        if error.filename is not None and Path(os.fspath(error.filename)) != source:
-            # The file was read: the schema of the `expected` version it declares cannot be opened in the library.
-            schema_file = _one_line(repr(Path(os.fspath(error.filename)).name))
-            raise SourceInputError(
-                f"{named}, a `{expected}` version living-doc-utilities {installed_utilities_version()} ships no "
-                f"schema for ({schema_file}); check its `schema_version`, or align the pins if the components run "
-                "different utilities versions."
-            ) from error
         if isinstance(error, FileNotFoundError):
             raise SourceInputError(f"{named}, which does not exist.") from error
         raise SourceInputError(f"{named}, which cannot be read: {error.strerror}.") from error

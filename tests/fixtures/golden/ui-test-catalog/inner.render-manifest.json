@@ -1,0 +1,35 @@
+{
+  "view": "inner",
+  "entities": [
+    "US-001",
+    "FUNC-001"
+  ],
+  "acceptance_criteria": [
+    "US-001-01",
+    "US-001-04",
+    "US-002-01"
+  ],
+  "aspects": [
+    {
+      "ac_id": "US-001-01",
+      "label": null,
+      "values": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "ac_id": "US-001-04",
+      "label": null,
+      "values": [
+        "card-holder"
+      ]
+    }
+  ],
+  "badges": [],
+  "scenarios": [
+    "SCN-001",
+    "SCN-002"
+  ],
+  "not_loaded": []
+}
