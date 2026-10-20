@@ -134,6 +134,8 @@ links.
     tests.
 - A manual run runs every gate, and `link-check.yml` checks every page.
   - Why: a manual run is a request to re-check the branch, whatever its last commit touched.
+- `link-check.yml` skips the golden snapshots under `tests/fixtures/golden/`.
+  - Why: they render the test samples, whose tracker and repository links are made up and do not resolve.
 - `format-check`, `lint` and `types` run once, on Python 3.10.
   - Why: they give the same result on every interpreter, and on the floor a syntax newer than 3.10 fails.
 - `make coverage` runs on Python 3.10 to 3.14.
