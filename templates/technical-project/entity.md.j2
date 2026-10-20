@@ -1,0 +1,80 @@
+{# One entity. Its heading holds the id alone, so every renderer derives the anchor its relations link to. #}
+
+### {{ entity.id }}
+
+**{{ entity.title }}**{% for badge in entity.badges %} {{ badge | code }}{% endfor +%}
+
+{% if entity.inner.tracker %}
+*{% for fact in entity.inner.tracker %}{{ fact.label }}: {{ fact.values | links }}{% if not loop.last %} · {% endif %}{% endfor %}*
+
+{% endif %}
+{% if entity.inner.stub_reason %}
+*{{ entity.inner.stub_reason }}*
+
+{% endif %}
+{% for paragraph in entity.body.paragraphs %}
+{{ paragraph }}
+
+{% endfor %}
+{% for fact in entity.inner.deprecation + entity.body.facts %}
+- **{{ fact.label }}:** {{ fact.values | links }}
+{% endfor %}
+{% for outline in entity.body.outlines %}
+
+**{{ outline.label }}**
+
+{% for item in outline.items %}
+{{ item.depth | indent }}- {{ item.text }}
+{% endfor %}
+{% endfor %}
+{% if entity.body.pages %}
+
+**Pages**
+
+{% for page in entity.body.pages %}
+- {{ page.route }}: {{ page.page_object }}{% if page.primary %} (primary){% endif %}. {{ page.purpose }}
+{% for fact in page.facts %}
+    - **{{ fact.label }}:** {{ fact.values | links }}
+{% endfor %}
+{% if page.notes %}
+    - **Notes:**
+{% for item in page.notes %}
+{{ (item.depth + 2) | indent }}- {{ item.text }}
+{% endfor %}
+{% endif %}
+{% endfor %}
+{% endif %}
+{% if entity.body.criteria %}
+
+**Acceptance criteria**
+{% for criterion in entity.body.criteria %}
+
+#### {{ criterion.header }}
+
+{{ criterion.description }}
+
+{% if criterion.lifecycle %}
+- {{ criterion.lifecycle }}
+{% endif %}
+{% for variant in criterion.variants %}
+- **{{ variant.label }}:** {{ variant.values | join(", ") }}
+{% endfor %}
+{% if criterion.rationale %}
+- **Rationale:** {{ criterion.rationale }}
+{% endif %}
+{% for outline in criterion.also %}
+- **{{ outline.label }}:**
+{% for item in outline.items %}
+{{ (item.depth + 1) | indent }}- {{ item.text }}
+{% endfor %}
+{% endfor %}
+{% endfor %}
+{% endif %}
+{% if entity.inner.not_loaded %}
+
+**Not loaded from the input**
+
+{% for item in entity.inner.not_loaded %}
+{% include "technical-project/not-loaded.md.j2" %}
+{% endfor %}
+{% endif %}

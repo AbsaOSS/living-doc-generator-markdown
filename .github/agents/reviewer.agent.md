@@ -73,7 +73,7 @@ Responsibilities
   - Must treat a passing test whose name matches the criterion as insufficient on its own; the test can be wrong, stale, or asserting something weaker than the criterion.
   - Prefer quoting the file + line range of the code that satisfies (or fails) each criterion in the review.
   - Worked examples
-    - Criterion "a run with valid inputs fails, so no pipeline mistakes it for output" → open `main.run()`, confirm `logger.error("%s", RENDERING_NOT_IMPLEMENTED_MESSAGE)` and `sys.exit(1)` follow the validated `ActionInputs.from_environment()` with no path to a `0` exit. A green `test_a_run_with_valid_inputs_fails_because_rendering_is_not_implemented` is weaker than reading the function's last lines.
+    - Criterion "a run exits `0` only once its document and run report are written" → open `main.run()`, confirm `write_output(...)` precedes `set_action_output(...)` and that every failure before it, a `TEMPLATE_KEY_MISSING` from `render()` included, ends in `sys.exit(1)`. A green `test_a_run_with_a_valid_input_writes_the_document_and_its_run_report_and_sets_the_output_path` is weaker than reading the function's last lines.
     - Criterion "a missing input fails with a one-line message naming it" → read each `raise ActionInputError(...)` in `generator_markdown/action_inputs.py`, confirm the message names the input and that a user-supplied value is formatted with `!r`, and that `main.run()` logs it once before `sys.exit(1)`.
     - Criterion "the action output key is `output-path`" → confirm `outputs.output-path` in `action.yml` reads `steps.liv-doc-generator.outputs.output-path`, and that the run step's `id` is `liv-doc-generator`.
 - Quality
@@ -110,7 +110,7 @@ Repo specifics
 - Contract-sensitive outputs
   - The inputs `document-type`, `source-path`, `output-path`, `document-title` (named as `living-doc-generator-pdf` names them) and `verbose-logging` (as `living-doc-collector-gh` names it); Action output key `output-path`; default output directory `./output/generator-markdown`.
   - Exit codes — `1` on every failure; no run exits `0` until rendering writes a document; no `2`–`5` taxonomy.
-  - The `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE`, asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py` and `tests/test_main.py`.
+  - The `ActionInputError`, `SourceInputError` and `OutputError` messages, asserted in `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py`, `tests/generator_markdown/test_run_report.py` and `tests/test_main.py`.
   - One `::error::` line per `action.yml` failure, asserted in `tests/test_action_yml.py`.
 - High-risk areas
   - `INPUT_*` parsing and validation in `generator_markdown/action_inputs.py`.

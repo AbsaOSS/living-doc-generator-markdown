@@ -17,17 +17,17 @@ Tooling and quality gates → Common pitfalls → Learned rules.
 
 ## Overview
 
-`Living Documentation Generator for Markdown` is a composite GitHub Action that will render
+`Living Documentation Generator for Markdown` is a composite GitHub Action that renders
 one living-documentation input — `generator-ready.json`, `ui-test-catalog.json` or
-`coverage-matrix.json`, in the contracts `living-doc-utilities` owns — as plain Markdown files.
-It is the generate step of a living-documentation pipeline. Rendering is not implemented yet:
-the action validates its inputs and fails. The specification lives outside this repository, in
-each task's issue.
+`coverage-matrix.json`, in the contracts `living-doc-utilities` owns — as a plain Markdown file.
+It is the generate step of a living-documentation pipeline: it renders the input by the view
+the input declares and writes the document and its run report into `output-path`. The
+specification lives outside this repository, in each task's issue.
 
 - Must treat execution as a GitHub Action on a GitHub-hosted runner as the supported path; a `python3 main.py` run is a development and debugging affordance only.
 - Must read action inputs from `INPUT_*` environment variables and nowhere else.
 - Must keep the whole generate pipeline AI-free — deterministic Python only, no LLM call anywhere in that path.
-- Must keep environment access at the module boundary — `generator_markdown/action_inputs.py` — and Must keep any other module free of environment reads; `living-doc-utilities`' `setup_logging()`, called from `main.py`, reads `INPUT_VERBOSE_LOGGING` and `RUNNER_DEBUG` itself.
+- Must keep environment access at the module boundary — `generator_markdown/action_inputs.py` — and Must keep any other module free of environment reads; `living-doc-utilities`' `setup_logging()` and `set_action_output()`, called from `main.py`, read `INPUT_VERBOSE_LOGGING`, `RUNNER_DEBUG` and `GITHUB_OUTPUT` themselves.
 
 ## Repo specifics
 
@@ -35,14 +35,19 @@ Module map — `main.py` at the root plus one package, `generator_markdown/`:
 
 | Path | Responsibility |
 |---|---|
-| `main.py` | Entry point — `run()`; sets up logging, validates the inputs through `ActionInputs.from_environment()`, reads the input file through `read_source()`, then fails with `RENDERING_NOT_IMPLEMENTED_MESSAGE`; maps every failure to exit code `1` |
+| `main.py` | Entry point — `run()`; sets up logging, validates the inputs through `ActionInputs.from_environment()`, reads the input file through `read_source()`, renders it, writes the document and its run report through `write_output()` and sets the `output-path` output; maps every failure to exit code `1` |
 | `generator_markdown/action_inputs.py` | Input layer — `DocumentType` (the three document types), `ActionInputs.from_environment()` reads every `INPUT_*` but `INPUT_VERBOSE_LOGGING` via `living_doc_utilities.github.utils.get_action_input` and raises `ActionInputError` with a one-line message |
 | `generator_markdown/source_reader.py` | Input file reader — `read_source()` reads `source-path` with `living_doc_utilities.contracts.io.read_artifact` as the one contract its document type renders (`CONTRACT_NAMES`) and returns the typed model; every failure is a `SourceInputError` with a one-line message naming `source-path` (`TOOLKIT_COMMANDS` for a collector output) |
+| `generator_markdown/presentation.py` | Presentation — `present()` maps an input model and its `document.view` to frozen dataclasses; `render_manifest()` records what they show; `DEVELOPER.md` § Design rules |
+| `generator_markdown/renderer.py` | Markdown renderer — `render()` renders a presentation model through `templates/<document-type>/document.md.j2`, escaping every printed value; a missing key raises `ContractError(TEMPLATE_KEY_MISSING)` |
+| `generator_markdown/run_report.py` | Run report — `input_counts()` from the input model, `run_report()` with the render manifest |
+| `generator_markdown/output_writer.py` | Output layer — `write_output()` writes `<document-type>.md` and `<document-type>.run-report.json` into `output-path`; a failure is an `OutputError` with a one-line message naming `output-path` |
+| `templates/` | Jinja2 templates, one directory per document type; they only render the presentation model |
 | `action.yml` | Composite action — the venv step (Python check, venv under `$RUNNER_TEMP`, install, import check) and the run step (`-E main.py`, every input in `env:`) |
 | `tools/check_runtime_requirements.py` | `make runtime-requirements` — the deny list that keeps `requirements.txt` runtime-only |
 | `tools/write_sample_inputs.py` | Writes `living-doc-utilities`' full sample of each named contract into a directory — the integration jobs' inputs and a debug run's |
 
-- Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → `read_source()`, logging a `SourceInputError` and `sys.exit(1)` → log ``"Liv-Doc generator for Markdown - input read: `<schema_version>`."`` → log the input's producer at DEBUG → log `RENDERING_NOT_IMPLEMENTED_MESSAGE` → `sys.exit(1)`.
+- Must treat `main.py` function `run()` as the entry point — its step order is `setup_logging()` → log `"Liv-Doc generator for Markdown - starting."` → `ActionInputs.from_environment()`, logging an `ActionInputError` and `sys.exit(1)` → log the valid inputs → `read_source()`, logging a `SourceInputError` and `sys.exit(1)` → log ``"Liv-Doc generator for Markdown - input read: `<schema_version>`."`` → log the input's producer at DEBUG → `present()` → `render()`, logging a `ContractError` and `sys.exit(1)` → `write_output()`, logging an `OutputError` and `sys.exit(1)` → `set_action_output()`, an `OSError` logged and `sys.exit(1)` → return, exit code `0`.
 - Must keep exactly one error line per failed run, since `tests/test_main.py` asserts there is one.
 
 Inputs — `INPUT_*` environment variables, parsed only in `ActionInputs` but `verbose-logging` (the first four named as `living-doc-generator-pdf` declares them, `verbose-logging` as `living-doc-collector-gh` does):
@@ -57,12 +62,12 @@ Inputs — `INPUT_*` environment variables, parsed only in `ActionInputs` but `v
 
 Contract-sensitive outputs:
 
-- Must keep the Action output key `output-path` stable — `action.yml` declares it from the run step `liv-doc-generator`; the action does not set it yet, as no run succeeds.
+- Must keep the Action output key `output-path` stable — `action.yml` declares it from the run step `liv-doc-generator`, which sets it to the resolved directory once the document and its run report are written.
 - Must keep the input error messages stable — `` Input `document-type` is required; valid types: technical-project, ui-test-catalog, coverage-matrix. ``, `` Input `document-type` is '<value>', not a valid type; valid types: … ``, `` Input `source-path` is required: the path to the input JSON file. `` — tests assert exact text.
 - Must keep the `SourceInputError` messages stable — each starts `` Input `source-path` is '<value>' ``; a collector output names `` the `living-doc-toolkit` command `normalize-docs` `` (`normalize-tests`, `coverage-matrix`) and another document type's file `` which document type `<type>` renders `` — `tests/generator_markdown/test_source_reader.py` asserts exact text.
-- Must keep `RENDERING_NOT_IMPLEMENTED_MESSAGE` (`Rendering is not implemented yet: living-doc-generator-markdown validated its inputs and wrote no document.`) until rendering replaces it.
+- Must keep the output file names `<document-type>.md` and `<document-type>.run-report.json` stable — `README.md` states them and `tests/test_main.py` asserts them.
 - Must keep every `action.yml` failure to one `::error::` line — `tests/test_action_yml.py` runs the venv step and asserts it.
-- Must keep exit-code behaviour stable — `1` on every failure; no run exits `0` yet. There is no `2`–`5` taxonomy in this repo.
+- Must keep exit-code behaviour stable — `1` on every failure, `0` once the document and its run report are written. There is no `2`–`5` taxonomy in this repo.
 - Must keep the `"Liv-Doc generator for Markdown - ..."` log strings stable — tests assert on them.
 
 ## Coding guidelines
@@ -138,6 +143,6 @@ Contract-sensitive outputs:
 
 ## Learned rules
 
-- Must keep the `ActionInputError` and `SourceInputError` messages and `RENDERING_NOT_IMPLEMENTED_MESSAGE` stable — `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py` and `tests/test_main.py` assert exact strings and `sys.exit(1)`.
+- Must keep the `ActionInputError`, `SourceInputError` and `OutputError` messages stable — `tests/generator_markdown/test_action_inputs.py`, `tests/generator_markdown/test_source_reader.py`, `tests/generator_markdown/test_run_report.py` and `tests/test_main.py` assert exact strings and `sys.exit(1)`.
 - Must not introduce a `2`–`5` exit-code taxonomy; this action reports every failure as `1`.
 - Must keep a user-supplied value in an error message on one line (`!r`), since a run fails with exactly one error line.

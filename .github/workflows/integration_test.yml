@@ -20,6 +20,7 @@ on:
   pull_request:
     paths:
       - 'generator_markdown/**'
+      - 'templates/**'
       - 'main.py'
       - 'pyproject.toml'
       - 'requirements.txt'
@@ -53,7 +54,7 @@ jobs:
           python -m venv "${RUNNER_TEMP}/samples-venv"
           "${RUNNER_TEMP}/samples-venv/bin/pip" install -r requirements.txt
           "${RUNNER_TEMP}/samples-venv/bin/python" tools/write_sample_inputs.py "${RUNNER_TEMP}/inputs" \
-            generator-ready coverage-matrix
+            generator-ready coverage-matrix ui-test-catalog
           rm -rf "${RUNNER_TEMP}/samples-venv"
 
       - name: Install a conflicting pydantic into the runner's interpreter
@@ -68,7 +69,6 @@ jobs:
 
       - name: Run the action (first step)
         id: first
-        continue-on-error: true
         uses: ./
         with:
           document-type: technical-project
@@ -80,42 +80,65 @@ jobs:
 
       - name: Run the action (second step)
         id: second
-        continue-on-error: true
         uses: ./
         with:
           document-type: coverage-matrix
           source-path: ${{ runner.temp }}/inputs/coverage-matrix.json
           output-path: ${{ github.workspace }}/output/second
 
-      - name: Both steps failed as the scaffold must, the venv was reused, the caller's environment is unchanged
+      - name: Run the action (third step)
+        id: third
+        uses: ./
+        with:
+          document-type: ui-test-catalog
+          source-path: ${{ runner.temp }}/inputs/ui-test-catalog.json
+          output-path: ${{ github.workspace }}/output/third
+          document-title: Checkout tests
+
+      - name: Every step rendered its document, the venv was reused, the caller's environment is unchanged
         env:
           VENV: ${{ runner.temp }}/living-doc-generator-markdown-venv
+          FIRST: ${{ steps.first.outputs.output-path }}
+          SECOND: ${{ steps.second.outputs.output-path }}
+          THIRD: ${{ steps.third.outputs.output-path }}
         run: |
           set -euo pipefail
-          test "${{ steps.first.outcome }}" = failure
-          test "${{ steps.second.outcome }}" = failure
-          test ! -e "${{ github.workspace }}/output"
+          test "$FIRST" = "${{ github.workspace }}/output/first"
+          test "$SECOND" = "${{ github.workspace }}/output/second"
+          test "$THIRD" = "${{ github.workspace }}/output/third"
+          rendered() {
+            ls "$1"
+            test "$(ls "$1" | sort | tr '\n' ' ')" = "$2.md $2.run-report.json "
+            head -n 1 "$1/$2.md"
+            jq -e --arg type "$2" '.document_type == $type and .document == ($type + ".md") and .view == "inner"
+              and .render_manifest.view == "inner"' "$1/$2.run-report.json"
+          }
+          rendered "$FIRST" technical-project
+          rendered "$SECOND" coverage-matrix
+          rendered "$THIRD" ui-test-catalog
+          test "$(head -n 1 "$THIRD/ui-test-catalog.md")" = '# Checkout tests'
           test "$(stat -c %Y "$VENV/pyvenv.cfg")" = "$(cat "${RUNNER_TEMP}/venv-cfg-mtime.txt")"
           replay() {
-            set +e
-            INPUT_DOCUMENT_TYPE="$1" INPUT_SOURCE_PATH="${RUNNER_TEMP}/inputs/$2.json" \
-              "$VENV/bin/python" -E main.py > "${RUNNER_TEMP}/replay-$2.log" 2>&1
-            status=$?
-            set -e
-            cat "${RUNNER_TEMP}/replay-$2.log"
-            test "$status" = 1
-            grep -F "input read: \`$2-v" "${RUNNER_TEMP}/replay-$2.log"
-            grep -F 'Rendering is not implemented yet' "${RUNNER_TEMP}/replay-$2.log"
+            out="${RUNNER_TEMP}/replay-$2"
+            INPUT_DOCUMENT_TYPE="$1" INPUT_SOURCE_PATH="${RUNNER_TEMP}/inputs/$2.json" INPUT_OUTPUT_PATH="$out" \
+              GITHUB_OUTPUT="$out.output" "$VENV/bin/python" -E main.py > "$out.log" 2>&1 || { cat "$out.log"; exit 1; }
+            cat "$out.log"
+            grep -F "input read: \`$2-v" "$out.log"
+            jq -e --arg type "$1" --arg input "$2" '.document_type == $type and (.input.schema_version | startswith($input + "-v"))
+              and (.render_manifest | has("entities") and has("acceptance_criteria") and has("aspects") and has("badges"))' \
+              "$out/$1.run-report.json"
+            test "$(cat "$out.output")" = "output-path=$out"
           }
           replay technical-project generator-ready
           replay coverage-matrix coverage-matrix
+          replay ui-test-catalog ui-test-catalog
           {
             which python
             python --version
             python -c 'import pydantic; print(pydantic.VERSION)'
           } | tee "${RUNNER_TEMP}/after.txt"
           diff "${RUNNER_TEMP}/before.txt" "${RUNNER_TEMP}/after.txt"
-          echo '::notice::both steps failed, both replays read their input and stopped on the not-implemented message, the venv was reused, and the runner interpreter is unchanged.'
+          echo '::notice::every step wrote its document and run report and set output-path, every replay wrote its run report, the venv was reused, and the runner interpreter is unchanged.'
 
   action-venv-rebuilt-when-python-changes:
     runs-on: ubuntu-latest
@@ -141,16 +164,20 @@ jobs:
 
       - name: Run the action on 3.12
         id: on-312
-        continue-on-error: true
         uses: ./
         with:
           document-type: technical-project
           source-path: ${{ runner.temp }}/inputs/generator-ready.json
 
-      - name: The venv was built from 3.12
+      - name: The venv was built from 3.12, and the document written into the default output directory
+        env:
+          OUTPUT_PATH: ${{ steps.on-312.outputs.output-path }}
         run: |
           set -euo pipefail
-          test "${{ steps.on-312.outcome }}" = failure
+          test "$OUTPUT_PATH" = "${{ github.workspace }}/output/generator-markdown"
+          test -s "$OUTPUT_PATH/technical-project.md"
+          test -s "$OUTPUT_PATH/technical-project.run-report.json"
+          rm -r "$OUTPUT_PATH"
           "${RUNNER_TEMP}/living-doc-generator-markdown-venv/bin/python" \
             -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
 
@@ -161,16 +188,17 @@ jobs:
 
       - name: Run the action on 3.11
         id: on-311
-        continue-on-error: true
         uses: ./
         with:
           document-type: technical-project
           source-path: ${{ runner.temp }}/inputs/generator-ready.json
 
       - name: The venv was rebuilt from the interpreter now on PATH
+        env:
+          OUTPUT_PATH: ${{ steps.on-311.outputs.output-path }}
         run: |
           set -euo pipefail
-          test "${{ steps.on-311.outcome }}" = failure
+          test -s "$OUTPUT_PATH/technical-project.md"
           "${RUNNER_TEMP}/living-doc-generator-markdown-venv/bin/python" \
             -c 'import sys, living_doc_utilities; assert sys.version_info[:2] == (3, 11), sys.version'
           echo '::notice::switching the interpreter rebuilt the venv instead of reusing the 3.12 one.'

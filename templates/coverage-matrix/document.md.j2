@@ -1,0 +1,57 @@
+{#- A coverage-matrix document: the matrix's summary, planned work in the inner view, then each entity's rows. -#}
+# {{ document.title }}
+
+*View: {{ document.view }}*
+
+## Summary
+
+{% with summary = document.summary %}
+{% include "coverage-matrix/summary.md.j2" %}
+{% endwith %}
+{% if document.planned %}
+
+## Planned work
+
+Planned criteria are not counted.
+
+- **Planned:** {{ document.planned.total }}
+- **Backlog:** {{ document.planned.backlog }}
+{% for version, count in document.planned.by_target_version %}
+- **v{{ version }}:** {{ count }}
+{% endfor %}
+{% endif %}
+{% for group in document.groups %}
+
+## {{ group.heading }}
+{% for entity in group.entities %}
+
+### {{ entity.id }}
+
+**{{ entity.title }}**{% for badge in entity.badges %} {{ badge | code }}{% endfor +%}
+
+{% with summary = entity.summary %}
+{% include "coverage-matrix/summary.md.j2" %}
+{% endwith %}
+{% if entity.rows %}
+
+| Criterion | State | Status | Scenarios |
+|---|---|---|---|
+{% for row in entity.rows %}
+| {{ row.ac_id }} | {{ row.state }} | {{ row.status | code }}{% if row.fraction %} {{ row.fraction }}{% endif %} | {% if row.scenarios %}{{ row.scenarios | join(", ") }}{% else %}—{% endif %} |
+{% endfor %}
+{% for row in entity.rows if row.aspects %}
+
+**{{ row.ac_id }}** {{ row.status | code }}{% if row.fraction %} {{ row.fraction }}{% endif +%}
+
+| {{ row.label }} | Status | Scenarios |
+|---|---|---|
+{% for aspect in row.aspects %}
+| {{ aspect.value }} | {{ aspect.status }} | {% if aspect.scenarios %}{{ aspect.scenarios | join(", ") }}{% else %}—{% endif %} |
+{% endfor %}
+{% endfor %}
+{% else %}
+
+No counted criteria.
+{% endif %}
+{% endfor %}
+{% endfor %}

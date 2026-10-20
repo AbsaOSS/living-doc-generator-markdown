@@ -1,5 +1,5 @@
 name: 'Living Documentation Generator for Markdown'
-description: 'Render living documentation as plain Markdown files. In development: validates its inputs and renders nothing yet.'
+description: 'Render a technical project, a UI test catalog or a coverage matrix as a plain Markdown file, by the view its input declares, with a run report.'
 inputs:
   document-type:
     description: 'Document to render: `technical-project`, `ui-test-catalog` or `coverage-matrix`.'

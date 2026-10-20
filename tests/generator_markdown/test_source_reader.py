@@ -16,7 +16,6 @@
 import json
 import os
 import sys
-from pathlib import Path
 
 import pytest
 from living_doc_utilities.contracts import (
@@ -379,11 +378,11 @@ def test_a_file_failing_model_validation_is_rejected_on_one_line(write_sample):
     "schema_version",
     [
         "generator-ready-v9.9.9",
-        # `utilities` accepts a trailing line break in `schema_version`; the quoted name keeps the message one line.
+        # `utilities` accepts a trailing line break in `schema_version`; its quoted value keeps the message one line.
         "generator-ready-v1.0.0\n",
-        # A digit that is not ASCII matches `utilities`' pattern and names no schema file.
+        # A digit that is not ASCII matches `utilities`' pattern, and no contract version is spelled with it.
         "generator-ready-v١.0.0",
-        # A schema file name past the file system's limit cannot be opened at all.
+        # Past any file name length: the registry rejects it before a schema file is looked for.
         "generator-ready-v" + "1" * 300 + ".0.0",
     ],
 )
@@ -396,13 +395,14 @@ def test_a_version_of_the_expected_contract_the_installed_utilities_lacks_is_rej
     # Act
     error = _rejected(DocumentType.TECHNICAL_PROJECT)
 
-    # Assert
-    assert isinstance(error.__cause__, OSError)
-    schema_file = Path(os.fspath(error.__cause__.filename)).name
+    # Assert: the `utilities` message, kept on one line, with its pin-alignment hint.
     assert str(error) == (
-        f"Input `source-path` is 'input.json', a `generator-ready` version living-doc-utilities "
-        f"{installed_utilities_version()} ships no schema for ({schema_file!r}); check its `schema_version`, "
-        "or align the pins if the components run different utilities versions."
+        f"Input `source-path` is 'input.json', not a valid `generator-ready` file: {_utilities_message(error)}"
+    )
+    assert _utilities_message(error) == (
+        f"[INVALID_CONTRACT_ID] schema_version {schema_version!r} is not a contract version this utilities ships "
+        f"(file written by utilities None, this is utilities {installed_utilities_version()!r}); "
+        "the components run different utilities versions — align the pins"
     )
 
 
@@ -416,10 +416,12 @@ def test_a_long_unshipped_version_is_cut_in_the_middle_keeping_the_pin_hint(tmp_
     message = _rejection(DocumentType.TECHNICAL_PROJECT)
 
     # Assert
-    assert message.startswith("Input `source-path` is 'input.json', a `generator-ready` version living-doc-utilities ")
-    assert len(message) < 1300
+    assert message.startswith(
+        "Input `source-path` is 'input.json', not a valid `generator-ready` file: [INVALID_CONTRACT_ID] "
+    )
+    assert len(message) < 1200
     assert " … " in message
-    assert message.endswith("or align the pins if the components run different utilities versions.")
+    assert message.endswith("the components run different utilities versions — align the pins")
 
 
 def test_an_unknown_contract_is_rejected_as_a_contract_mismatch(tmp_path):

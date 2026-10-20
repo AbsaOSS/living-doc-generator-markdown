@@ -16,32 +16,34 @@
 
 """
 This module contains the main script for the Living Documentation Generator for Markdown GH Action.
-It sets up logging, validates the action inputs and reads the input file. Rendering is not implemented yet, so
-every run fails.
+It sets up logging, validates the action inputs, reads the input file, renders the document by the view the input
+declares, and writes the document and its run report into `output-path`.
 """
 
 import logging
 import sys
 
+from living_doc_utilities.contracts.codes import ContractError
+from living_doc_utilities.github.utils import set_action_output
 from living_doc_utilities.logging_config import setup_logging
 
-from generator_markdown.action_inputs import ActionInputError, ActionInputs
+from generator_markdown.action_inputs import OUTPUT_PATH, ActionInputError, ActionInputs
+from generator_markdown.output_writer import OutputError, document_file_name, write_output
+from generator_markdown.presentation import present
+from generator_markdown.renderer import render
+from generator_markdown.run_report import run_report
 from generator_markdown.source_reader import SourceInputError, read_source
-
-# A run with valid inputs still fails, so no pipeline mistakes this version for one that wrote a document.
-RENDERING_NOT_IMPLEMENTED_MESSAGE = (
-    "Rendering is not implemented yet: living-doc-generator-markdown validated its inputs and wrote no document."
-)
 
 logger = logging.getLogger(__name__)
 
 
 def run() -> None:
     """
-    Run the Living Documentation (Liv-Doc) Generator for Markdown: validate the inputs, read the input file, then fail.
+    Run the Living Documentation (Liv-Doc) Generator for Markdown: validate the inputs, read the input file, render
+    the document and write it with its run report.
 
-    @return: None; the run ends with exit code 1, on an invalid input or input file, or because rendering is not
-        implemented yet.
+    @return: None; the run ends with exit code 1 on an invalid input or input file, a template missing a key, or an
+        output it cannot write, and with exit code 0 once the document and its run report are written.
     """
     setup_logging()
     logger.info("Liv-Doc generator for Markdown - starting.")
@@ -74,8 +76,33 @@ def run() -> None:
         producer.version,
         producer.utilities_version,
     )
-    logger.error("%s", RENDERING_NOT_IMPLEMENTED_MESSAGE)
-    sys.exit(1)
+
+    presentation = present(document, inputs.document_title)
+    try:
+        markdown = render(presentation, inputs.document_type.value)
+    except ContractError as error:
+        logger.error("%s", error)
+        sys.exit(1)
+
+    report = run_report(inputs.document_type, document, presentation, document_file_name(inputs.document_type))
+    try:
+        written = write_output(inputs.output_path, inputs.document_type, markdown, report)
+    except OutputError as error:
+        logger.error("%s", error)
+        sys.exit(1)
+    for path in written:
+        logger.info("Liv-Doc generator for Markdown - written: `%s`.", path)
+
+    try:
+        set_action_output(OUTPUT_PATH, inputs.output_path)
+    except KeyError:
+        # A run outside GitHub Actions has no `GITHUB_OUTPUT` to append to.
+        logger.info("Liv-Doc generator for Markdown - no `GITHUB_OUTPUT`: the `%s` output is not set.", OUTPUT_PATH)
+    except OSError as error:
+        logger.error("Liv-Doc generator for Markdown - the `%s` output cannot be set: %s.", OUTPUT_PATH, error)
+        sys.exit(1)
+
+    logger.info("Liv-Doc generator for Markdown - finished: %s view of `%s`.", presentation.view, inputs.output_path)
 
 
 if __name__ == "__main__":

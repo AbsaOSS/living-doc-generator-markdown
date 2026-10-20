@@ -1,0 +1,90 @@
+{
+  "view": "inner",
+  "entities": [
+    "US-001",
+    "US-002",
+    "FUNC-001"
+  ],
+  "acceptance_criteria": [
+    "US-001-01",
+    "US-001-04",
+    "US-001-05",
+    "US-002-01"
+  ],
+  "aspects": [
+    {
+      "ac_id": "US-001-01",
+      "label": "Aspect",
+      "values": [
+        "desktop",
+        "mobile"
+      ]
+    },
+    {
+      "ac_id": "US-001-04",
+      "label": "payment_field",
+      "values": [
+        "card-holder",
+        "expiry-date",
+        "last-four-digits"
+      ]
+    },
+    {
+      "ac_id": "US-001-05",
+      "label": "Aspect",
+      "values": [
+        "desktop",
+        "mobile"
+      ]
+    }
+  ],
+  "badges": [
+    {
+      "id": "US-001",
+      "badges": [
+        "ACTIVE"
+      ]
+    },
+    {
+      "id": "US-002",
+      "badges": [
+        "DEPRECATED"
+      ]
+    },
+    {
+      "id": "FUNC-001",
+      "badges": [
+        "ACTIVE"
+      ]
+    },
+    {
+      "id": "US-001-01",
+      "badges": [
+        "COVERED"
+      ]
+    },
+    {
+      "id": "US-001-04",
+      "badges": [
+        "PARTIALLY COVERED"
+      ]
+    },
+    {
+      "id": "US-001-05",
+      "badges": [
+        "NOT COVERED"
+      ]
+    },
+    {
+      "id": "US-002-01",
+      "badges": [
+        "COVERED"
+      ]
+    }
+  ],
+  "scenarios": [
+    "SCN-002",
+    "SCN-001"
+  ],
+  "not_loaded": []
+}
