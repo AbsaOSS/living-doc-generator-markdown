@@ -53,18 +53,18 @@ Files and parts marked "From agentic-defaults" are replaced when the kit updates
 
 ### Profile
 
-- Stage: prototype | early | production | mature
-- Audience: personal | internal | customer | public
-- Team: solo | small | several
-- Handles: none | money | personal data | regulated data | safety
+- Stage: early
+- Audience: public
+- Team: solo
+- Handles: none
 
 ### Commands
 
 <!-- Standard commands wrapping the project's real tools (the project-scan skill). -->
 
-- `make setup`: ...
-- `make run`: ...
-- `make build`: ...
-- `make test`: ... (one file or test: `make test T=<path>`)
-- `make lint` and `make format`: ...
-- `make check`: everything that must pass before work is done: ...
+- Setup, the development dependencies: `make install`
+- Run, the generator over a sample input: `python3 tools/write_sample_inputs.py . generator-ready`, then `python3 main.py` with the `INPUT_*` variables of `DEVELOPER.md` § Debug run
+- `make test`: the unit tests over `tests/` (one file or test: `pytest <path>`)
+- `make lint` and `make format`: ruff and Pylint (score ≥ 9.5); ruff autofix and Black. Types: `make types`
+- Check, everything that must pass before work is done: `make qa`
+- Context check, for work on a branch: `bash .claude/skills/context-md/check.sh --base origin/master`
