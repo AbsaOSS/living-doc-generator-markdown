@@ -64,6 +64,7 @@ Files and parts marked "From agentic-defaults" are replaced when the kit updates
 
 - Setup, the development dependencies: `make install`
 - Run, the generator over a sample input: `python3 tools/write_sample_inputs.py . generator-ready`, then `python3 main.py` with the `INPUT_*` variables of `DEVELOPER.md` § Debug run
+- Run, the three document types over given `living-doc-toolkit` outputs: `cp .env.local.example .env.local`, then `./local-integration.sh --check` and `./local-integration.sh` (`DEVELOPER.md` § Local Integration Run)
 - `make test`: the unit tests over `tests/` (one file or test: `pytest <path>`)
 - `make lint` and `make format`: ruff and Pylint (score ≥ 9.5); ruff autofix and Black. Types: `make types`
 - Check, everything that must pass before work is done: `make qa`

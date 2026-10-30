@@ -174,8 +174,12 @@ cython_debug/
 .pypirc
 
 run_script.sh
-# Local configurations a machine keeps stay untracked.
+# Local configurations - `.env.local` for local-integration.sh and any other `.env.*` a machine keeps - stay
+# untracked; only the committed example is not. Then the script's own venv (its default output root, `output/`, is
+# ignored below).
 .env.*
+!.env.local.example
+.venv-local-integration/
 .DS_Store
 # The action's default output root, `./output/generator-markdown`.
 output/*
