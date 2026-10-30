@@ -163,9 +163,13 @@ def test_no_authored_value_becomes_a_heading_a_list_a_link_or_another_block(host
     # Assert: a template's heading may hold an authored value, as text; an injected one would start with the marker.
     assert not [text for text in heading_texts(hostile_markdown) if text.startswith(MARKER)]
     assert not [t for t in flat if t.type in ("image", "hr", "blockquote_open", "code_block", "fence")]
-    # A template's list item or link may hold an authored value; an injected one would start with the marker.
+    # A template's list item or link may hold an authored value; an injected one would start with the marker. An item
+    # nested in another is skipped: a bullet-list entry's `- ` line is a nested item by design (`rendering.md`,
+    # Records and presentation), so its text starts with what the author wrote.
     following = [flat[index + 1] for index, token in enumerate(flat[:-1]) if token.type == "link_open"]
-    following += [flat[index + 2] for index, token in enumerate(flat[:-2]) if token.type == "list_item_open"]
+    following += [
+        flat[index + 2] for index, token in enumerate(flat[:-2]) if token.type == "list_item_open" and token.level == 1
+    ]
     assert not [t.content for t in following if t.content.startswith(MARKER)]
 
 

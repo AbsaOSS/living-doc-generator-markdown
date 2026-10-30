@@ -6,15 +6,16 @@
 
 | Coverage | Counted | Covered | Partially covered | Not covered |
 |---|---|---|---|---|
-| 58.3% | 4 | 2 | 1 | 1 |
+| 33.3% | 7 | 2 | 1 | 4 |
 
 ## Planned work
 
 Planned criteria are not counted.
 
-- **Planned:** 2
-- **Backlog:** 1
+- **Planned:** 4
+- **Backlog:** 2
 - **v1.6.0:** 1
+- **v1.7.0:** 1
 
 ## User Stories
 
@@ -66,11 +67,59 @@ Planned criteria are not counted.
 |---|---|---|---|
 | US-002-01 | deprecated | `COVERED` | SCN-002 |
 
+### US-010
+
+**Unified checkout** `ACTIVE`
+
+| Coverage | Counted | Covered | Partially covered | Not covered |
+|---|---|---|---|---|
+| not applicable | 0 | 0 | 0 | 0 |
+
+No counted criteria.
+
 ## Functionalities
 
 ### FUNC-001
 
 **Validate card number** `ACTIVE`
+
+| Coverage | Counted | Covered | Partially covered | Not covered |
+|---|---|---|---|---|
+| not applicable | 0 | 0 | 0 | 0 |
+
+No counted criteria.
+
+### FUNC-002
+
+**Charge a saved card** `ACTIVE`
+
+| Coverage | Counted | Covered | Partially covered | Not covered |
+|---|---|---|---|---|
+| 0.0% | 3 | 0 | 0 | 3 |
+
+| Criterion | State | Status | Scenarios |
+|---|---|---|---|
+| FUNC-002-01 | active | `NOT COVERED` | per aspect, below |
+| FUNC-002-04 | active | `NOT COVERED` | per aspect, below |
+| FUNC-002-05 | deprecated | `NOT COVERED` | — |
+
+**FUNC-002-01** `NOT COVERED`
+
+| Aspect | Status | Scenarios |
+|---|---|---|
+| visa | not covered | — |
+| mastercard | not covered | — |
+
+**FUNC-002-04** `NOT COVERED`
+
+| decline\_reason | Status | Scenarios |
+|---|---|---|
+| expired | not covered | — |
+| blocked | not covered | — |
+
+### FUNC-003
+
+**Charge through the legacy gateway** `DEPRECATED`
 
 | Coverage | Counted | Covered | Partially covered | Not covered |
 |---|---|---|---|---|

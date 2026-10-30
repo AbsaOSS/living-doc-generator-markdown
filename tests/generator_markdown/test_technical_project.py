@@ -247,8 +247,14 @@ def test_a_relation_links_to_its_targets_place_in_the_document(view):
 
 @pytest.mark.parametrize("view", VIEWS)
 def test_a_relation_to_an_id_the_document_does_not_hold_shows_the_id_unlinked(view):
+    # Arrange: the sample holds both relations' targets; this document does not.
+    document = sample(CONTRACT, view)
+    document.content.entities = [
+        entity for entity in document.content.entities if entity.entity_id not in {"FEAT-002", "US-010"}
+    ]
+
     # Act
-    markdown = rendered(sample(CONTRACT, view))
+    markdown = rendered(document)
 
     # Assert
     assert "- **Feature dependencies:** FEAT-002\n" in _block(markdown, "FEAT-001")

@@ -204,7 +204,8 @@ jobs:
           echo '::notice::switching the interpreter rebuilt the venv instead of reusing the 3.12 one.'
 
   action-rejects-python-39:
-    runs-on: ubuntu-latest
+    # Pinned to 24.04: `actions/setup-python` has no 3.9 build for the Ubuntu 26.04 that `ubuntu-latest` resolves to.
+    runs-on: ubuntu-24.04
     name: Action Venv - Python 3.9 Is Rejected
     steps:
       - name: Checkout repository
