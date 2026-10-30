@@ -63,7 +63,7 @@ def test_each_entitys_summary_and_the_matrixs_show_the_coverage_and_the_counts(v
     markdown = rendered(sample(CONTRACT, view))
 
     # Assert
-    assert f"## Summary\n\n{SUMMARY_HEADER}| 58.3% | 4 | 2 | 1 | 1 |\n" in markdown
+    assert f"## Summary\n\n{SUMMARY_HEADER}| 33.3% | 7 | 2 | 1 | 4 |\n" in markdown
     assert f"{SUMMARY_HEADER}| 44.4% | 3 | 1 | 1 | 1 |\n" in _entity_block(markdown, "US-001")
     assert f"{SUMMARY_HEADER}| 100.0% | 1 | 1 | 0 | 0 |\n" in _entity_block(markdown, "US-002")
     assert f"{SUMMARY_HEADER}| not applicable | 0 | 0 | 0 | 0 |\n\nNo counted criteria.\n" in (
@@ -78,7 +78,7 @@ def test_the_planned_work_summary_shows_in_the_inner_view():
     # Assert
     assert (
         "## Planned work\n\nPlanned criteria are not counted.\n\n"
-        "- **Planned:** 2\n- **Backlog:** 1\n- **v1.6.0:** 1\n"
+        "- **Planned:** 4\n- **Backlog:** 2\n- **v1.6.0:** 1\n- **v1.7.0:** 1\n"
     ) in markdown
 
 

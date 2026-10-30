@@ -3,8 +3,13 @@
   "entities": [
     "US-001",
     "US-002",
+    "US-010",
     "FEAT-001",
-    "FUNC-001"
+    "FEAT-002",
+    "FEAT-003",
+    "FUNC-001",
+    "FUNC-002",
+    "FUNC-003"
   ],
   "acceptance_criteria": [
     "US-001-01",
@@ -12,7 +17,12 @@
     "US-001-03",
     "US-001-04",
     "US-001-05",
-    "US-002-01"
+    "US-002-01",
+    "FUNC-002-01",
+    "FUNC-002-02",
+    "FUNC-002-03",
+    "FUNC-002-04",
+    "FUNC-002-05"
   ],
   "aspects": [
     {
@@ -39,6 +49,22 @@
         "desktop",
         "mobile"
       ]
+    },
+    {
+      "ac_id": "FUNC-002-01",
+      "label": "Aspect",
+      "values": [
+        "visa",
+        "mastercard"
+      ]
+    },
+    {
+      "ac_id": "FUNC-002-04",
+      "label": "decline_reason",
+      "values": [
+        "expired",
+        "blocked"
+      ]
     }
   ],
   "badges": [
@@ -55,6 +81,12 @@
       ]
     },
     {
+      "id": "US-010",
+      "badges": [
+        "ACTIVE"
+      ]
+    },
+    {
       "id": "FEAT-001",
       "badges": [
         "ACTIVE",
@@ -62,9 +94,35 @@
       ]
     },
     {
+      "id": "FEAT-002",
+      "badges": [
+        "ACTIVE",
+        "DERIVED"
+      ]
+    },
+    {
+      "id": "FEAT-003",
+      "badges": [
+        "DEPRECATED",
+        "DERIVED"
+      ]
+    },
+    {
       "id": "FUNC-001",
       "badges": [
         "ACTIVE"
+      ]
+    },
+    {
+      "id": "FUNC-002",
+      "badges": [
+        "ACTIVE"
+      ]
+    },
+    {
+      "id": "FUNC-003",
+      "badges": [
+        "DEPRECATED"
       ]
     }
   ],

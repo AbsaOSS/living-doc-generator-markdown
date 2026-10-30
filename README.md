@@ -14,7 +14,7 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 
 ## Status
 
-**Renders all three document types from the `living-doc-utilities` 0.7.0 contracts; `living-doc-toolkit` does not write its inputs yet.** [`action.yml`](./action.yml) reads one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output, renders it as one Markdown document by the view the input declares (`inner` or `release`), and writes the document and a run report into `output-path`. It runs in a venv of its own, built from the Python on `PATH` (3.10 or later).
+**Renders all three document types from the `living-doc-utilities` 0.8.0 contracts; `living-doc-toolkit` does not write its inputs yet.** [`action.yml`](./action.yml) reads one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output, renders it as one Markdown document by the view the input declares (`inner` or `release`), and writes the document and a run report into `output-path`. It runs in a venv of its own, built from the Python on `PATH` (3.10 or later).
 
 `source-path` is the one `living-doc-toolkit` output its document type renders, read through the [`living-doc-utilities`](https://github.com/AbsaOSS/living-doc-utilities) contracts:
 
@@ -63,7 +63,7 @@ Each run writes two files into `output-path`, named by its document type, and le
   - a missing `document-type` or `source-path`, or an unknown `document-type`, names the input;
   - a `source-path` that is missing, not a regular file, unreadable, or not JSON it can load, or a file its contract rejects, names `source-path`;
   - a collector output (`doc-source`, `doc-entities`, `ui-tests`) names the `living-doc-toolkit` command that writes the document type's input; another document type's file names its `document-type`;
-  - an input written by another `living-doc-utilities` version that declares a contract version 0.7.0 does not ship is `INVALID_CONTRACT_ID`, with the hint to align the pins;
+  - an input written by another `living-doc-utilities` version that declares a contract version 0.8.0 does not ship is `INVALID_CONTRACT_ID`, with the hint to align the pins;
   - a template that reads a key its model lacks is `TEMPLATE_KEY_MISSING`, never an empty section;
   - an `output-path` that cannot be written, or that holds a line break, names `output-path`.
 

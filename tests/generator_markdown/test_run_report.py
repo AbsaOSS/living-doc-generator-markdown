@@ -104,8 +104,21 @@ def test_the_technical_project_manifest_records_each_view():
         "US-001-04",
         "US-001-05",
         "US-002-01",
+        "FUNC-002-01",
+        "FUNC-002-02",
+        "FUNC-002-03",
+        "FUNC-002-04",
+        "FUNC-002-05",
     ]
-    assert release["acceptance_criteria"] == ["US-001-01", "US-001-04", "US-001-05", "US-002-01"]
+    assert release["acceptance_criteria"] == [
+        "US-001-01",
+        "US-001-04",
+        "US-001-05",
+        "US-002-01",
+        "FUNC-002-01",
+        "FUNC-002-04",
+        "FUNC-002-05",
+    ]
     assert {
         "ac_id": "US-001-04",
         "label": "payment_field",
