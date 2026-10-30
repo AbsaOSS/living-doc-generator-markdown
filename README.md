@@ -14,17 +14,17 @@ For where this generator sits in the wider pipeline, see the [Living Documentati
 
 ## Status
 
-**Renders all three document types from the `living-doc-utilities` 0.8.0 contracts; `living-doc-toolkit` does not write its inputs yet.** [`action.yml`](./action.yml) reads one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output, renders it as one Markdown document by the view the input declares (`inner` or `release`), and writes the document and a run report into `output-path`. It runs in a venv of its own, built from the Python on `PATH` (3.10 or later).
+**Renders all three document types from the `living-doc-utilities` 0.8.0 contracts, from the files `living-doc-toolkit` writes; `living-doc-toolkit` has no release yet.** [`action.yml`](./action.yml) reads one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output, renders it as one Markdown document by the view the input declares (`inner` or `release`), and writes the document and a run report into `output-path`. It runs in a venv of its own, built from the Python on `PATH` (3.10 or later).
 
 `source-path` is the one `living-doc-toolkit` output its document type renders, read through the [`living-doc-utilities`](https://github.com/AbsaOSS/living-doc-utilities) contracts:
 
-| `document-type` | `source-path` | Written by the `living-doc-toolkit` command (next release) | Title without `document-title` |
+| `document-type` | `source-path` | Written by the `living-doc-toolkit` command | Title without `document-title` |
 |---|---|---|---|
 | `technical-project` | `generator-ready.json` | `normalize-docs` | the input's `document.title`, else `Technical project` |
 | `ui-test-catalog` | `ui-test-catalog.json` | `normalize-tests` | `UI test catalog` |
 | `coverage-matrix` | `coverage-matrix.json` | `coverage-matrix` | `Coverage matrix` |
 
-Today's `living-doc-toolkit` does not write these files in their contracts' format yet — its `generator-ready.json` and `coverage-matrix.json` are rejected; [DEVELOPER.md § Debug run](DEVELOPER.md#debug-run) writes one from the `living-doc-utilities` samples.
+`living-doc-toolkit`'s unreleased `master` writes these files in their contracts' format. [DEVELOPER.md § Local Integration Run](DEVELOPER.md#local-integration-run) renders all three from one `living-doc-toolkit` run's files, outside any workflow; [§ Debug run](DEVELOPER.md#debug-run) writes one from the `living-doc-utilities` samples.
 
 ### Usage
 
@@ -69,7 +69,7 @@ Each run writes two files into `output-path`, named by its document type, and le
 
 ## Developer Guide
 
-Setup, quality gates, a debug run, the action's venv rules and what CI runs: [DEVELOPER.md](./DEVELOPER.md).
+Setup, quality gates, a debug run, the action's venv rules and what CI runs: [DEVELOPER.md](./DEVELOPER.md). A run of all three document types over given `living-doc-toolkit` outputs, outside any workflow, is a development and operator-check affordance, not a second supported deployment target: [Local Integration Run](DEVELOPER.md#local-integration-run).
 
 ## Contribution Guidelines
 

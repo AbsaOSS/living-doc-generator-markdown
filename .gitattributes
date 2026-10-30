@@ -1,2 +1,4 @@
 # The golden snapshots are compared byte for byte, so every checkout keeps their LF line endings.
 tests/fixtures/golden/** text eol=lf
+# Shell scripts keep LF on every checkout: bash, Git Bash on Windows included, fails on a CRLF line.
+*.sh text eol=lf
