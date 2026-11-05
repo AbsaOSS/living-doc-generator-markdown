@@ -36,6 +36,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       python_changed: ${{ steps.changes.outputs.python_changed }}
+      docs_changed: ${{ steps.changes.outputs.docs_changed }}
     steps:
       - name: Checkout repository
         uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
@@ -68,6 +69,16 @@ jobs:
             echo "python_changed=true" >> "$GITHUB_OUTPUT"
           else
             echo "python_changed=false" >> "$GITHUB_OUTPUT"
+          fi
+
+          # A Markdown, `action.yml` or other non-Python file the pages anchor runs the tests job too: tests/docs/
+          # checks every tracked page, its anchors, examples and option lists against `action.yml`, and the root tests
+          # read `action.yml`, the shell script and its example configuration. tests/docs/test_ci_filter.py keeps this
+          # list complete.
+          if echo "$changed_files" | grep -E '(\.([Mm][Dd]|[Mm][Aa][Rr][Kk][Dd][Oo][Ww][Nn])$|^action\.yml$|\.sh$|\.example$|^\.github/(dependabot\.yml|workflows/[^/]+\.ya?ml)$)' > /dev/null; then
+            echo "docs_changed=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "docs_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
   static-checks:
@@ -130,7 +141,7 @@ jobs:
 
   tests:
     needs: detect
-    if: needs.detect.outputs.python_changed == 'true'
+    if: needs.detect.outputs.python_changed == 'true' || needs.detect.outputs.docs_changed == 'true'
     runs-on: ubuntu-latest
     name: Python Tests (Python ${{ matrix.python-version }})
     strategy:
