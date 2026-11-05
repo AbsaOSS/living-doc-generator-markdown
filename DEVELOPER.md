@@ -2,11 +2,11 @@
 
 ## Purpose
 
-Anyone who changes this repository reads this page. It covers setup, the quality gates, the design rules the
-rendering keeps, a debug run, a local integration run over given `living-doc-toolkit` outputs, the rules the action's
-venv follows, and what CI runs.
+This page is how to change this repository: setup, the quality gates, the design rules the rendering keeps, a debug
+run, a local integration run over given `living-doc-toolkit` outputs, the rules the action's venv follows, what CI
+runs, and the page rules.
 
-Read before: [README](README.md)
+Read before: [README](README.md) · Next: [Contributing](CONTRIBUTING.md)
 
 ## Contents
 
@@ -17,6 +17,7 @@ Read before: [README](README.md)
 - [Local Integration Run](#local-integration-run)
 - [Action venv](#action-venv)
 - [CI](#ci)
+- [Writing documentation](#writing-documentation)
 
 ## Setup
 
@@ -27,7 +28,7 @@ Read before: [README](README.md)
 | File | What it holds | Who installs it |
 |---|---|---|
 | `requirements.txt` | Runtime only: `living-doc-utilities` and `Jinja2`, the packages `main.py` and `generator_markdown/` import | `action.yml`, into its venv, on every run; `local-integration.sh`, into its own |
-| `requirements-dev.txt` | `-r requirements.txt`, the gate and test tools, `PyYAML` for `tests/test_action_yml.py` and `markdown-it-py` for the rendering tests | `make install` and `test.yml` |
+| `requirements-dev.txt` | `-r requirements.txt`, the gate and test tools, `PyYAML` for `tests/test_action_yml.py` and `tests/docs/`, and `markdown-it-py` for the rendering tests | `make install` and `test.yml` |
 
 - The supported floor is 3.10, as `pyproject.toml` `requires-python` states; [CI](#ci) says which versions are tested.
 - A test, lint or type tool in `requirements.txt` would download on every run of every caller; `make qa` fails on one.
@@ -53,6 +54,8 @@ stops at the first failure. Run it before opening a pull request.
 - Black, ruff and Pylint take their files from `git ls-files`, so a new file is checked once it is tracked.
 - Black, ruff and mypy read their settings from `pyproject.toml`; Pylint reads `.pylintrc`. `make help` lists
   every target.
+- `make test` and `make coverage` also run the page checks in `tests/docs/`
+  ([Writing documentation](#writing-documentation)).
 
 ## Design rules
 
@@ -85,8 +88,8 @@ python3 main.py
 ```
 
 - Each input is an `INPUT_<NAME>` variable, upper case with `_` for `-`, as `action.yml` passes it.
-- `INPUT_VERBOSE_LOGGING=true`, in any case, switches the log to DEBUG, as `RUNNER_DEBUG=1` does;
-  `living-doc-utilities`' `setup_logging()` reads both, not `ActionInputs`.
+- `INPUT_VERBOSE_LOGGING` is `verbose-logging` ([Inputs](docs/action.md#inputs)); `living-doc-utilities`'
+  `setup_logging()` reads it and `RUNNER_DEBUG`, not `ActionInputs`.
 - Without `living-doc-toolkit`, write an input from `living-doc-utilities`' samples; `ui-test-catalog` and
   `coverage-matrix` give the other two document types':
 
@@ -94,8 +97,8 @@ python3 main.py
   python3 tools/write_sample_inputs.py . generator-ready
   ```
 
-- A run with a valid input writes `<document-type>.md` and `<document-type>.run-report.json` into `output-path` and
-  exits 0. Without `GITHUB_OUTPUT`, as outside GitHub Actions, it sets no `output-path` output and logs that once.
+- A run with a valid input writes its two files into `output-path` ([Files](docs/action.md#files)) and exits 0.
+  Without `GITHUB_OUTPUT`, as outside GitHub Actions, it sets no `output-path` output and logs that once.
 
 ## Local Integration Run
 
@@ -153,7 +156,8 @@ command writes in the development venv ([Setup](#setup)); no sample is committed
 
 - A relative path resolves against this repository's root; `~/` is the home directory.
 - One `KEY=value` per line; a line starting with `#` is a comment, and values are taken literally.
-- No key sets `document-title`: each document's title is the one a run without it gives ([README](README.md#status)).
+- No key sets `document-title`: each document's title is the one a run without it gives
+  ([Document types](docs/action.md#document-types)).
 
 ### Run It
 
@@ -180,8 +184,7 @@ A run, in order:
    - Why: the output root may also hold the other components' local runs, `collector-gh/` and `toolkit/`, and the
      example's `samples/`.
    - A run that fails stops the script with one line naming the document type, after the generator's log. An input of
-     another contract stops it with the generator's own line; for a collector output, that line names the
-     `living-doc-toolkit` command that writes the document type's input.
+     another contract stops it with the generator's own line ([Errors](docs/action.md#errors)).
    - `main.py` gets a `GITHUB_OUTPUT` file under the venv, so its log does not report a missing one.
 5. **Checks and reports** each document, with `tools/local_integration.py`:
    - It re-reads the input with `read_artifact`, then prints the input's contract and producer, the document's view
@@ -197,29 +200,24 @@ A run, in order:
      cannot forge a report line. The generator's log lines above it are printed as the generator writes them.
 
 - It exits non-zero when a check, the install, a run or a document's check fails.
-- `tests/test_local_integration.py` holds its promises. The [CI](#ci) filter does not list the script, so a change to
-  `local-integration.sh` alone runs no tests: run `make test`.
+- `tests/test_local_integration.py` holds its promises. A change to `local-integration.sh` or `.env.local.example`
+  alone runs it in [CI](#ci) too.
 - For an issue or a report, keep the whole output: `set -o pipefail; ./local-integration.sh 2>&1 | tee local-integration.log`.
 
 ## Action venv
 
-`action.yml` runs the generator in a venv of its own, built from the caller's Python.
+`action.yml` runs the generator in a venv of its own, built from the caller's Python. What the caller provides, and
+the lines the step fails with: [Prerequisites](docs/action.md#prerequisites), [Errors](docs/action.md#errors).
 
-- The action uses the Python on `PATH`; the caller prepares it, for example with `actions/setup-python`.
-- Below 3.10 it fails before creating anything, with one line:
-  `::error::living-doc-generator-markdown needs Python >= 3.10 on PATH. Add actions/setup-python before this step.`
-- It installs `requirements.txt` into `$RUNNER_TEMP/living-doc-generator-markdown-venv`. It never changes the
-  caller's interpreter, `PATH` or environment, and writes nothing to `$GITHUB_ENV` or `$GITHUB_PATH`.
 - `PIP_TARGET`, `PIP_PREFIX`, `PIP_USER`, `PIP_ROOT`, `PIP_PYTHON` and `PYTHONPATH` are unset before the install.
   - Why: pip reads them as configuration, so a caller exporting one would empty or shadow the venv, or (`PIP_PYTHON`)
     install into the caller's own interpreter.
 - The venv is reused only when the interpreter now on `PATH` built it, compared as `sys.base_prefix` plus version;
   otherwise it is rebuilt.
 - After the install, one import of `living_doc_utilities` and `generator_markdown` through the venv's interpreter
-  proves the packages landed there. Its failure is one line pointing at the runner's pip configuration.
+  proves the packages landed there.
 - `main.py` runs with `-E`, so a caller's `PYTHONPATH` cannot shadow the venv. Every input reaches it through the
   run step's `env:`.
-- Linux runners only: the venv's POSIX `bin/` layout is assumed.
 - `tests/test_action_yml.py` runs the venv step against a fake interpreter. `integration_test.yml` shows the reuse,
   the rebuild on an interpreter change, and the rejection of Python 3.9 on real ones ([CI](#ci)).
 
@@ -238,6 +236,12 @@ links.
   - `action.yml` is in the list because `tests/test_action_yml.py` reads it.
   - On a pull request a renamed file counts by its old path too, so moving a file out of that set still runs the
     tests.
+- The tests also run when a file they read changed: a `.md` or `.markdown` page, `action.yml`, a `.sh` script, an
+  `.example` file, `.github/dependabot.yml` or a workflow → `.github/workflows/test.yml::docs_changed`
+  - Why: `tests/docs/` checks every page against `action.yml` and the code, and `tests/test_local_integration.py` runs
+    `local-integration.sh` over `.env.local.example`.
+  - The static checks still run on a Python-related change only. `tests/docs/test_ci_filter.py` keeps the list
+    complete.
 - A manual run runs every gate, and `link-check.yml` checks every page.
   - Why: a manual run is a request to re-check the branch, whatever its last commit touched.
 - `link-check.yml` skips the golden snapshots under `tests/fixtures/golden/`.
@@ -276,3 +280,90 @@ links.
   checks the failure.
   - Why: otherwise it would also pass if `setup-python` resolved something newer and the action failed for another
     reason.
+
+## Writing documentation
+
+> **Provisional.** These rules are a pilot; the owner tunes them after this first rebuild, and a skill may replace
+> this section. This section is their only copy in the repository.
+
+### Depth
+
+Depth is where a page sits in the folder tree. Deeper means more detail.
+
+<!-- over limit: one row per depth; the last column is each depth's rule -->
+| Depth | Pages | Rule |
+|---|---|---|
+| 1 | `README.md`; `DEVELOPER.md` and `CONTRIBUTING.md` | `README.md` is the entry: what the action is for, overview, usage, inputs and outputs at a glance, "where next". The other two are solo: one page each, no child pages |
+| 2 | `docs/<topic>.md` | a hub: principle, decision list, routing to depth 3; it names and links facts, and defines none |
+| 2 leaf | `docs/<topic>.md` with no `docs/<topic>/` folder, such as `docs/action.md` | a leaf may define, like a depth-3 page |
+| 3 | `docs/<topic>/<page>.md` | detail: fact lists, option lists, examples |
+
+- One fact, one page: define a fact on the deepest page that needs it; shallower pages name it and link.
+
+### Every page
+
+1. `# Title`.
+2. `## Purpose`: 1 to 3 sentences, what the page is for ("This page is …", "This page defines …"); then
+   `Read before:` and `Next:` links where the page sits on a reading path.
+   - `README.md` is the exception: its Purpose says what the action does and where it sits in the pipeline.
+     Why: GitHub shows the README as the repository's front page, so it opens with the action, not the page.
+3. `## Contents`: links to every other `##` chapter of the page, and nothing else.
+4. Only the parts the page needs.
+
+### Parts
+
+| Part | Form | Checked against |
+|---|---|---|
+| Principle | at most 5 short sentences: the core idea | review |
+| Decision list | one line per decision; the page's code map names where the code realises it | code, through the code map |
+| Fact list | one line per fact the code relies on; the page's code map names its `path::symbol`, or a test | code, through the code map |
+| Why | one indented `Why:` line under a rule, decision or fact, at most 20 words | review |
+| Option list | every available option with a one-line meaning; complete | the input, output, document-type or code list in code |
+| Example | at most 20 lines; run or parsed by a test | tests |
+| Prose | only in Purpose, Principle and one-line list lead-ins; a block is at most 4 lines | review |
+| Language | sentences of at most 20 words; active voice; one term per idea, the [glossary](https://github.com/AbsaOSS/living-doc/blob/master/docs/reference/glossary.md)'s | review |
+
+### Limits
+
+- The limits (prose block 4 lines, sentence 20 words, example 20 lines) are targets, not hard caps.
+- Exceed one only with a reason, stated next to the block: `<!-- over limit: <reason> -->`.
+- Keep the overrun small; split the block when you can.
+
+### Anchors
+
+- A page states facts for people and carries no `path::symbol`. The `CONTEXT.md` beside the code holds the page's code
+  map.
+  - A code map is a `## Code map` chapter, one line per fact: `fact → path::symbol`.
+    `tests/docs/pages.py::CODE_MAPS` pairs each depth-2 page with its map.
+  - Why: an agent needs the anchor; a reader needs the fact.
+- `DEVELOPER.md` may carry anchors: its readers work in the `Makefile`, the workflows and the scripts.
+- A changed fact changes the page and its code map together.
+- `path` is relative to the repository root: `generator_markdown/source_reader.py::CONTRACT_NAMES`.
+- `symbol` is a module-level name, or a dotted one for a member: `ActionInputs.from_environment`.
+- A test is `tests/<path>.py::test_name`; a non-Python file names a text it contains: `Makefile::qa`.
+- Never use line numbers; they drift.
+- A rule another component must realise names that component instead of an anchor: `→ utilities`, `→ toolkit`.
+- Every code-map item ends in `→` and an anchor, a component or a link.
+- `README.md` links repository files relatively: `docs/action.md`.
+
+### Examples
+
+- A `yaml` block must parse; every `with:` key it gives this action must be an `action.yml` input.
+- Every `uses:` of this action names the same release, so a release bump changes them all.
+- A `json` block must parse; a test runs every `python` block, each in a fresh namespace and a temporary directory.
+- A `shell` block is a command line, not an example; it is not run.
+
+### Checks
+
+<!-- over limit: one row per check; the first column lists what each test file holds -->
+| Check | Where |
+|---|---|
+| page list and depths, `Purpose` then `Contents`, Contents links, no orphan page, README links relative | `tests/docs/test_page_structure.py` |
+| every `path::symbol` on a page or in a code map resolves; no line-number anchor; no anchor on a page but `DEVELOPER.md`; every depth-2 page has a code map, each item saying where it is realised | `tests/docs/test_anchors.py` |
+| every example parses or runs; every `with:` key is an `action.yml` input; one release named | `tests/docs/test_examples.py` |
+| the input and output tables equal `action.yml`; the document-type table equals `DocumentType`, `CONTRACT_NAMES`, `TOOLKIT_COMMANDS` and `DEFAULT_TITLES`; README's list equals `action.yml`; every code a page names is in `ALL_CODES` | `tests/docs/test_option_lists.py` |
+| links and `#fragments` resolve | `.github/workflows/link-check.yml::lychee` |
+| a pull request that changes only a page, a code map, `action.yml`, the local run's script or its example configuration, or a file an anchor names still runs these tests | `.github/workflows/test.yml::docs_changed`, `tests/docs/test_ci_filter.py` |
+
+To add a page: put it at its depth, add it to `tests/docs/pages.py::APPROVED_PAGES`, and link it from `README.md`; at
+depth 2, add its code map and pair the two in `tests/docs/pages.py::CODE_MAPS`.
