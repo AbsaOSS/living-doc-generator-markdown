@@ -2,83 +2,94 @@
 
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](https://opensource.org/licenses/Apache-2.0)
 
-A source-agnostic GitHub Action that renders the canonical Living Documentation dataset as plain Markdown files, meant to be committed alongside code and rendered by whatever already renders a repo's Markdown (GitHub, a wiki, a generic static site generator).
+## Purpose
+
+A source-agnostic GitHub Action that renders one `living-doc-toolkit` output as one plain Markdown document, with a
+run report. It is the generate step of a living-documentation pipeline, the final stage, after `living-doc-toolkit`.
+
+## Contents
+
+- [Overview](#overview)
+- [Usage](#usage)
+- [Inputs and outputs](#inputs-and-outputs)
+- [Where next](#where-next)
+- [Developer Guide](#developer-guide)
+- [Contributing](#contributing)
+- [License](#license)
+- [Contact](#contact)
 
 ## Overview
 
-> **The Living Documentation pipeline runs AI-free.** Every step — collect → normalize → generate — is deterministic tooling (Python, JSON Schema validation, Jinja2/Markdown templates) with no LLM call anywhere in that path. The agentic layer in [`living-doc` `agentic/`](https://github.com/AbsaOSS/living-doc/tree/master/agentic) can accelerate the upstream *authoring* of GitHub Issues and `.feature` files, but it is never a runtime dependency of this pipeline: a human writing the same input by hand is a fully supported, identical path.
+- Three document types: a technical project, a UI test catalog and a coverage matrix, each from the one `living-doc-toolkit` output it reads → [Document types](docs/action.md#document-types)
+- By view: a document shows what the view its input declares, `inner` or `release`, keeps → [Document types](docs/action.md#document-types)
+- Two files per run, the document and its run report, into `output-path` → [Files](docs/action.md#files)
+- Plain Markdown, meant to be committed next to the code it documents and rendered by whatever already renders the repository's Markdown (GitHub, a wiki, a generic static site generator), so no publishing infrastructure is needed
+- Contract artifacts only: it reads its input through the `living-doc-utilities` contracts (`==0.8.0`) → [Contracts](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts.md)
+- Pipeline-ready: collect → normalize → generate, this action being the generate step → [Architecture](https://github.com/AbsaOSS/living-doc/blob/master/docs/introduction/architecture.md), [Choosing a Generator](https://github.com/AbsaOSS/living-doc/blob/master/docs/guides/choosing-a-generator.md)
+- GitHub Actions first: a step in a workflow is the supported way to run it; a local run is a development and operator-check aid, not a second deployment target → [Debug run](DEVELOPER.md#debug-run), [Local Integration Run](DEVELOPER.md#local-integration-run)
+- AI-free: collect → normalize → generate is deterministic tooling, with no LLM call anywhere in that path → [AI-free Principle](CONTRIBUTING.md#ai-free-principle)
+  - The tooling is Python, JSON Schema validation, and Jinja2 and Markdown templates.
+  - The agentic layer in [`living-doc` `agentic/`](https://github.com/AbsaOSS/living-doc/tree/master/agentic) can speed up authoring GitHub Issues and `.feature` files.
+  - It is never a runtime dependency: a human writing the same input by hand is a fully supported, identical path.
 
-`living-doc-generator-markdown` is the **Markdown generator** — the final stage of the Living Documentation pipeline. It consumes the canonical dataset produced by [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) and emits plain Markdown files. The output is intended to be committed next to the code it documents and rendered by any existing Markdown renderer, so no additional publishing infrastructure is required.
+## Usage
 
-For where this generator sits in the wider pipeline, see the [Living Documentation architecture](https://github.com/AbsaOSS/living-doc/blob/master/docs/introduction/architecture.md) and [Choosing a Generator](https://github.com/AbsaOSS/living-doc/blob/master/docs/guides/choosing-a-generator.md).
-
-## Status
-
-**Renders all three document types from the `living-doc-utilities` 0.8.0 contracts, from the files `living-doc-toolkit` writes; `living-doc-toolkit` has no release yet.** [`action.yml`](./action.yml) reads one [`living-doc-toolkit`](https://github.com/AbsaOSS/living-doc-toolkit) output, renders it as one Markdown document by the view the input declares (`inner` or `release`), and writes the document and a run report into `output-path`. It runs in a venv of its own, built from the Python on `PATH` (3.10 or later).
-
-`source-path` is the one `living-doc-toolkit` output its document type renders, read through the [`living-doc-utilities`](https://github.com/AbsaOSS/living-doc-utilities) contracts:
-
-| `document-type` | `source-path` | Written by the `living-doc-toolkit` command | Title without `document-title` |
-|---|---|---|---|
-| `technical-project` | `generator-ready.json` | `normalize-docs` | the input's `document.title`, else `Technical project` |
-| `ui-test-catalog` | `ui-test-catalog.json` | `normalize-tests` | `UI test catalog` |
-| `coverage-matrix` | `coverage-matrix.json` | `coverage-matrix` | `Coverage matrix` |
-
-`living-doc-toolkit`'s unreleased `master` writes these files in their contracts' format. [DEVELOPER.md § Local Integration Run](DEVELOPER.md#local-integration-run) renders all three from one `living-doc-toolkit` run's files, outside any workflow; [§ Debug run](DEVELOPER.md#debug-run) writes one from the `living-doc-utilities` samples.
-
-### Usage
+One step that renders a technical project, after `actions/setup-python`
+([Prerequisites](docs/action.md#prerequisites)):
 
 ```yaml
-- uses: actions/setup-python@v7
-  with:
-    python-version: '3.12'
-
 - name: Generate Markdown
   id: markdown
-  uses: AbsaOSS/living-doc-generator-markdown@<commit-sha>  # no release is tagged yet
+  uses: AbsaOSS/living-doc-generator-markdown@v0.1.0
   with:
-    document-type: technical-project   # required: technical-project, ui-test-catalog or coverage-matrix
-    source-path: generator-ready.json  # required: the document type's input file
-    output-path: docs/generated        # optional: a directory; default ./output/generator-markdown
-    document-title: Payments service   # optional: the document's title
-    verbose-logging: 'false'           # optional: 'true' for DEBUG logs
-
-- run: ls "${{ steps.markdown.outputs.output-path }}"
+    document-type: technical-project
+    source-path: generator-ready.json
+    output-path: docs/generated
+    document-title: Payments service
 ```
 
-| Output | Value |
+The three document types: [Document types](docs/action.md#document-types). What lands in `output-path`, and how a
+later step reads it: [Files](docs/action.md#files), [Outputs](docs/action.md#outputs).
+
+## Inputs and outputs
+
+Every input at a glance; required flags, defaults and errors are in the [action reference](docs/action.md#inputs).
+
+- `document-type` (required): `technical-project`, `ui-test-catalog` or `coverage-matrix`
+- `source-path` (required): the document type's input file
+- `output-path`: the directory the document and its run report go into
+- `document-title`: the document's title
+- `verbose-logging`: debug logging
+
+The one output, `output-path`, is that directory as an absolute path ([Outputs](docs/action.md#outputs)).
+
+## Where next
+
+| I want to… | Read |
 |---|---|
-| `output-path` | the `output-path` directory, resolved to an absolute path |
-
-Each run writes two files into `output-path`, named by its document type, and leaves every other file there as it is:
-
-| File | Holds |
-|---|---|
-| `<document-type>.md` | the document, e.g. `technical-project.md` |
-| `<document-type>.run-report.json` | the input's contract and producer, its record counts (equal to its `metadata.stats.cardinality`), and the render manifest: the entity ids, acceptance criteria, aspects, badges and scenarios the document shows, and what was not loaded |
-
-- The title is `document-title` when it is not empty; otherwise the default in the table above.
-- The inner view shows everything the input holds, and what a collector could not load from it; the release view leaves out the fields [`living-doc-utilities`' rendering rules](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts/rendering.md#fields-by-view) mark inner-only. The view is the input's own `document.view`.
-- A run that wrote both files exits 0 and sets `output-path`. Every failure is one line and exit code 1:
-  - a missing `document-type` or `source-path`, or an unknown `document-type`, names the input;
-  - a `source-path` that is missing, not a regular file, unreadable, or not JSON it can load, or a file its contract rejects, names `source-path`;
-  - a collector output (`doc-source`, `doc-entities`, `ui-tests`) names the `living-doc-toolkit` command that writes the document type's input; another document type's file names its `document-type`;
-  - an input written by another `living-doc-utilities` version that declares a contract version 0.8.0 does not ship is `INVALID_CONTRACT_ID`, with the hint to align the pins;
-  - a template that reads a key its model lacks is `TEMPLATE_KEY_MISSING`, never an empty section;
-  - an `output-path` that cannot be written, or that holds a line break, names `output-path`.
+| set every input, pick a document type, read the files and the output, handle an error | [Action reference](docs/action.md) |
+| know which fields each view shows | [`living-doc-utilities` rendering rules](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts/rendering.md) |
+| read the contracts and codes the generator implements | [`living-doc-utilities` contracts](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts.md) |
+| see where the generator sits in the pipeline | [The frame](https://github.com/AbsaOSS/living-doc/blob/master/docs/introduction/principles.md#the-frame) |
+| render one document from samples, or all three from a `living-doc-toolkit` run's files, outside any workflow | [Debug run](DEVELOPER.md#debug-run), [Local Integration Run](DEVELOPER.md#local-integration-run) |
+| set up the repository, run the gates, read the design rules | [Developer guide](DEVELOPER.md) |
+| contribute a change | [Contributing](CONTRIBUTING.md) |
 
 ## Developer Guide
 
-Setup, quality gates, a debug run, the action's venv rules and what CI runs: [DEVELOPER.md](./DEVELOPER.md). A run of all three document types over given `living-doc-toolkit` outputs, outside any workflow, is a development and operator-check affordance, not a second supported deployment target: [Local Integration Run](DEVELOPER.md#local-integration-run).
+Setup, the gates, the design rules, the local runs, the action's venv, CI and the page rules: [DEVELOPER.md](DEVELOPER.md).
 
-## Contribution Guidelines
+## Contributing
 
-Contributions are welcome. See [CONTRIBUTING.md](./CONTRIBUTING.md) for the bug-report, feature-request, branch-naming, and PR conventions.
+Contributions are welcome. Bug reports, feature requests, the AI-free principle, and branch and pull request
+conventions: [CONTRIBUTING.md](CONTRIBUTING.md).
 
-### License Information
+## License
 
-Licensed under the Apache License 2.0 — see [LICENSE](./LICENSE).
+Licensed under the Apache License 2.0; see [LICENSE](LICENSE).
 
-### Contact or Support Information
+## Contact
 
-Maintained by [ABSA Group Limited](https://github.com/AbsaOSS). Open a [GitHub Issue](https://github.com/AbsaOSS/living-doc-generator-markdown/issues) for questions, bug reports, or feature requests.
+Maintained by [ABSA Group Limited](https://github.com/AbsaOSS). Open a
+[GitHub Issue](https://github.com/AbsaOSS/living-doc-generator-markdown/issues) for questions, bug reports, or feature
+requests.
