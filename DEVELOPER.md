@@ -229,6 +229,10 @@ links.
 - `QA Gate` is the job to mark as the one required check: it always runs, passes over a skipped job and fails on a
   failed or cancelled one.
   - Why: a required check must report on every pull request, also on one that changed no Python.
+- `PR Requirements` skips a pull request Dependabot opened →
+  `.github/workflows/check-pr-requirements.yml::dependabot[bot]`
+  - Why: Dependabot cannot give the issue-number title, the template's sections, a closing reference or a ticket
+    branch; a job skipped by `if` reports success, so the required check still passes.
 - The gates run when a Python-related file changed: `*.py`, `requirements.txt`, `requirements-dev.txt`,
   `pyproject.toml`, `Makefile`, `.pylintrc`, `action.yml`, `test.yml`, `templates/` or `tests/fixtures/`.
   - `templates/` and the golden snapshots under `tests/fixtures/` are in the list because a change to either changes
