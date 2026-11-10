@@ -18,10 +18,15 @@ permissions:
 jobs:
   check-pr:
     name: PR Requirements
+    # Dependabot cannot give the issue-number title, the template's sections, a closing reference or a ticket
+    # branch, so its pull requests skip the check. The pull request's author decides, not github.actor, so a person
+    # pushing to or labelling Dependabot's branch keeps the skip. A job skipped by `if` reports success, so the
+    # required check still passes.
+    if: github.event.pull_request.user.login != 'dependabot[bot]'
     runs-on: ubuntu-latest
     steps:
       - name: Check PR requirements
-        uses: AbsaOSS/check-pr-requirements@adb22f6d88c93fd801e787a63d948d6fbbdd4af3 # v0.2.0
+        uses: AbsaOSS/check-pr-requirements@0d4f326fcf798afc702480a68281ab5694236a57 # v0.3.0
         with:
           pr-title: ${{ github.event.pull_request.title }}
           pr-body: ${{ github.event.pull_request.body }}
