@@ -14,7 +14,8 @@ pytest==9.2.0
 pytest-cov==7.1.0
 pytest-mock==3.17.0
 
-# `tests/test_action_yml.py` parses `action.yml`.
+# The tests parse YAML: `action.yml` (`tests/test_action_yml.py`, `tests/docs/pages.py`), `test.yml`
+# (`tests/docs/test_ci_filter.py`) and the pages' `yaml` examples (`tests/docs/test_examples.py`).
 PyYAML==6.0.3
 
 # The rendering tests parse the written Markdown as CommonMark.

@@ -14,7 +14,7 @@ document with a run report. It is the generate stage of the living-doc pipeline.
 ## Tech stack
 
 - Python `>=3.10`; CI runs 3.10 to 3.14.
-- `living-doc-utilities==0.8.0`: the contract models, `read_artifact`, the codes, `setup_logging`, `safe_href`.
+- `living-doc-utilities==0.8.1`: the contract models, `read_artifact`, the codes, `setup_logging`, `safe_href`.
 - `Jinja2==3.1.6` with `StrictUndefined`; one template folder per document type under `templates/`.
 - pytest + pytest-cov, ruff, Black, Pylint, mypy; `PyYAML` and `markdown-it-py` for the tests only.
 
