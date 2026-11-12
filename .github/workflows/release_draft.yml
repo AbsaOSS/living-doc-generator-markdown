@@ -80,20 +80,24 @@ jobs:
           tag-name: ${{ github.event.inputs.tag-name }}
           from-tag-name: ${{ github.event.inputs.from-tag-name }}
           chapters: |
-            - { title: Epics 🚀, label: Epic, order: 10 }
-            - { title: New Features 🎉, label: enhancement, order: 20 }
-            - { title: Bugfixes 🛠, label: bug, order: 30 }
-            - { title: CI/CD ⚙️, label: CI/CD, order: 40 }
-            - { title: DE 🔧, label: DE, order: 50 }
-            - { title: DS 📊, label: DS, order: 60 }
-            - { title: Pramen Scala 🔶, label: Pramen-Scala, order: 70 }
-            - { title: Pramen Python 🐍, label: Pramen-Py, order: 80 }
-            - { title: Entries to skip 🚫, label: duplicate, hidden: true, order: 99 }
-            - { title: Entries to skip 🚫, label: no RN, hidden: true, order: 99 }
+            - {"title": "Breaking Changes 💥", "labels": "breaking change, generic:breaking-change"}
+            - {"title": "New Features 🎉", "labels": "enhancement, type:feature"}
+            - {"title": "Bugfixes 🛠", "labels": "bug, type:bug"}
+            - {"title": "Security updates 👮", "labels": "security, scope:security"}
+            - {"title": "Technical debt 🧹", "labels": "tech debt, type:tech-debt, refactoring"}
+            - {"title": "Documentation 📜", "labels": "documentation, type:documentation"}
+            - {"title": "Infrastructure ⚙️", "labels": "infrastructure, scope:devops"}
+            - {"title": "Epics 📖", "labels": "epic, type:epic"}
+            - {"title": "Silent-live 🤫", "label": "silent live"}
+            - {"title": "Operative 🗂️", "labels": "operative, type:operative, spike, type:spike, pointer, type:pointer", "hidden": true}
+            - {"title": "Entries to skip 🚫", "labels": "duplicate, generic:duplicate, invalid, wontfix, generic:wont-fix, no RN, pr:no-release-notes", "hidden": true}
+          duplicity-scope: 'none'
           warnings: true
+          skip-release-notes-labels: "no RN,pr:no-release-notes,duplicate,generic:duplicate,invalid,wontfix,generic:wont-fix"
           print-empty-chapters: false
-          row-format-issue: '{type}: {number} _{title}_ by {developers} in {pull-requests}'
-          row-format-pr: '{number} _{title}_ by {developers}'
+          row-format-issue: '_{title}_ {developers} in {number}'
+          row-format-pr: '_{title}_ {developers} in {number}'
+          row-format-link-pr: true
 
       - name: Create draft release
         uses: softprops/action-gh-release@8a0cd651e5b2365bd640854a3fa5dfc70e4875f3 # v3.0.4

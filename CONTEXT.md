@@ -98,6 +98,10 @@ flowchart LR
 - `.env.local.example`'s keys must equal the script's `KEYS` (`tests/test_local_integration.py`).
 - Some tests fail on Windows only: a directory read, a file name with a line break, the venv's `bin/` layout, the
   bash script run end to end. CI runs on ubuntu.
+- The release-notes configuration is the same in every `living-doc*` repository (AbsaOSS/living-doc#97):
+  `release_draft.yml`'s `release-notes-title` and `chapters` through `row-format-link-pr`,
+  `check_pr_release_notes.yml`'s `skip-labels`, and both workflows' `permissions:`. Change it in all of them together
+  → [what it covers and how the generator sorts](https://github.com/AbsaOSS/living-doc/blob/master/.github/CONTEXT.md)
 - `.local_context/` is private and never committed.
 
 ## Code map
