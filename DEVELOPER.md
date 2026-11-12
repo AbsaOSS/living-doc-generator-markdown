@@ -4,7 +4,7 @@
 
 This page is how to change this repository: setup, the quality gates, the design rules the rendering keeps, a debug
 run, a local integration run over given `living-doc-toolkit` outputs, the rules the action's venv follows, what CI
-runs, and the page rules.
+runs, how the version is set and a release is cut, and the page rules.
 
 Read before: [README](README.md) · Next: [Contributing](CONTRIBUTING.md)
 
@@ -17,6 +17,8 @@ Read before: [README](README.md) · Next: [Contributing](CONTRIBUTING.md)
 - [Local Integration Run](#local-integration-run)
 - [Action venv](#action-venv)
 - [CI](#ci)
+- [Versioning](#versioning)
+- [Release](#release)
 - [Writing documentation](#writing-documentation)
 
 ## Setup
@@ -284,6 +286,43 @@ links.
   checks the failure.
   - Why: otherwise it would also pass if `setup-python` resolved something newer and the action failed for another
     reason.
+
+## Versioning
+
+- `version` under `[project]` in `pyproject.toml` is the version the release tag carries, without the `v` →
+  `pyproject.toml::version`
+- Nothing reads it at run time: the run report names the generator, its `living-doc-utilities` version and the
+  input's producer → `generator_markdown/run_report.py::GENERATOR_NAME`
+- It follows Semantic Versioning. While it is `0.x`, a minor release may break and a patch never does; every breaking
+  change is listed in the release notes with its migration.
+- Every `uses:` of this action on a page names the one release →
+  `tests/docs/test_examples.py::test_every_example_names_one_release_of_this_action`
+
+## Release
+
+1. On a branch, set `version` in `pyproject.toml` and the release in every `uses:` example. Merge it through a pull
+   request after `make qa`.
+2. Actions → **Draft Release** → **Run workflow** on `master`, with `tag-name` `v<version>` and `from-tag-name` the
+   previous tag → `.github/workflows/release_draft.yml::from-tag-name`
+   - From the CLI: `gh workflow run release_draft.yml --ref master -f tag-name=vX.Y.Z -f from-tag-name=vX.Y.W`.
+3. The workflow checks that the tag is well formed, new and a valid increment, tags the head of the branch it runs on
+   and pushes the tag, collects the release notes, then creates a draft release.
+4. Review and edit the draft, then click **Publish release**.
+
+- The tag is pushed when the workflow runs, not when the draft is published →
+  `.github/workflows/release_draft.yml::Create and push tag`
+  - Why: deleting a draft leaves its tag. A tag is never cut again: a wrong release is followed by the next patch.
+- The workflow tags the head of the branch, so nothing merges into `master` between the commit you release and the
+  run → `.github/workflows/release_draft.yml::context.sha`
+- The workflow does not compare `pyproject.toml` with the tag, so step 1 is on you.
+- The first release, `v0.1.0`, has no earlier tag:
+  - the tag check accepts any version while no tag exists;
+  - `from-tag-name` stays empty: when given, it must name an existing tag;
+  - the draft then lists every closed issue since the repository began, so edit it down to what the release delivers.
+- Each merged pull request contributes the bullet lines directly under its `## Release Notes` heading, one line each:
+  a bullet wrapped over two lines is cut after the first → `.github/workflows/release_draft.yml::release-notes-title`
+- A pull request labelled `no RN`, `pr:no-release-notes`, `duplicate`, `invalid` or `wontfix` (or their `generic:`
+  names) contributes nothing → `.github/workflows/release_draft.yml::skip-release-notes-labels`
 
 ## Writing documentation
 
