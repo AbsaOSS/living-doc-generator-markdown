@@ -123,6 +123,7 @@ What realises each fact of [`docs/action.md`](docs/action.md), the action's refe
 - The view is the input's `document.view` → `generator_markdown/presentation.py::_technical_project`, `generator_markdown/presentation.py::_ui_test_catalog` and `generator_markdown/presentation.py::_coverage_matrix`
 - The fields each view shows → utilities
 - The entities of each type in ascending order of the numbers in their ids → `generator_markdown/presentation.py::_groups` and `generator_markdown/presentation.py::_id_order`
+- A coverage matrix's totals, then one table per entity type, each ID linked to its chapter → `tests/generator_markdown/test_coverage_matrix.py::test_the_summary_opens_with_the_totals_then_one_table_per_entity_type_in_id_order` and `generator_markdown/presentation.py::_coverage_matrix`
 - The document-type table equals the code → `tests/docs/test_option_lists.py::test_the_document_type_table_equals_the_code`
 - The input table equals `action.yml` → `tests/docs/test_option_lists.py::test_the_input_table_equals_action_yml`
 - An empty `output-path` is the default → `generator_markdown/action_inputs.py::ActionInputs.from_environment` and `generator_markdown/action_inputs.py::DEFAULT_OUTPUT_PATH`
