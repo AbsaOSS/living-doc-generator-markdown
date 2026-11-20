@@ -1,18 +1,23 @@
-{#- A technical-project document: the entities by type, each with its criteria, and what was not loaded. -#}
+{#- A technical-project document: one overview table per type with a row per entity, its ID linked to its chapter;
+    the entities by type, each with its criteria; and what was not loaded. -#}
 # {{ document.title }}
 
 {% set selection = document.selection %}
 *View: {{ document.view }} · version {{ document.version }} · {{ selection.included_entities }} of {{ selection.total_entities }} entities and {{ selection.included_criteria }} of {{ selection.total_criteria }} acceptance criteria selected*
 
-## Contents
+## Overview
+{% for table in document.overview %}
 
-{% for group in document.groups %}
-- {{ group.heading }}
-{% for entity in group.entities %}
-    - {% if entity.anchor %}{{ entity.id | anchored(entity.anchor) }}{% else %}{{ entity.id }}{% endif %} {{ entity.title }}
+**{{ table.heading }}**
+
+| ID | Title | State |{% for column in table.columns %} {{ column }} |{% endfor +%}
+|---|---|---|{% for column in table.columns %}---|{% endfor +%}
+{% for row in table.rows %}
+| {% if row.anchor %}{{ row.id | anchored(row.anchor) }}{% else %}{{ row.id }}{% endif %} | {{ row.title }} | {% for badge in row.badges %}{{ badge | code }} {% endfor %}|{% for count in row.counts %} {{ count }} |{% endfor +%}
 {% endfor %}
 {% endfor %}
 {% if document.not_loaded %}
+
 - [Not loaded from the input](#not-loaded-from-the-input)
 {% endif %}
 {% for group in document.groups %}

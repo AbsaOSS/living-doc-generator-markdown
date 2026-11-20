@@ -2,20 +2,31 @@
 
 *View: release · version 1.4.0 · 9 of 9 entities and 7 of 11 acceptance criteria selected*
 
-## Contents
+## Overview
 
-- User Stories
-    - [US-001](#us-001) Checkout with a saved payment method
-    - [US-002](#us-002) Checkout as a guest
-    - [US-010](#us-010) Unified checkout
-- Features
-    - [FEAT-001](#feat-001) Checkout page
-    - [FEAT-002](#feat-002) Payments API
-    - [FEAT-003](#feat-003) Legacy payment page
-- Functionalities
-    - [FUNC-001](#func-001) Validate card number
-    - [FUNC-002](#func-002) Charge a saved card
-    - [FUNC-003](#func-003) Charge through the legacy gateway
+**User Stories**
+
+| ID | Title | State | Active | Deprecated |
+|---|---|---|---|---|
+| [US-001](#us-001) | Checkout with a saved payment method | `ACTIVE` | 3 | 0 |
+| [US-002](#us-002) | Checkout as a guest | `DEPRECATED` | 0 | 1 |
+| [US-010](#us-010) | Unified checkout | `ACTIVE` | 0 | 0 |
+
+**Features**
+
+| ID | Title | State | Functionalities |
+|---|---|---|---|
+| [FEAT-001](#feat-001) | Checkout page | | 1 |
+| [FEAT-002](#feat-002) | Payments API | | 1 |
+| [FEAT-003](#feat-003) | Legacy payment page | `DEPRECATED` | 1 |
+
+**Functionalities**
+
+| ID | Title | State | Active | Deprecated |
+|---|---|---|---|---|
+| [FUNC-001](#func-001) | Validate card number | `ACTIVE` | 0 | 0 |
+| [FUNC-002](#func-002) | Charge a saved card | `ACTIVE` | 2 | 1 |
+| [FUNC-003](#func-003) | Charge through the legacy gateway | `DEPRECATED` | 0 | 0 |
 
 ## User Stories
 
@@ -43,9 +54,13 @@ As a customer, I want to check out with a saved payment method, so that I can co
 
 **Acceptance criteria**
 
-#### AC:US-001-01 (v1.0.0 - active)
+| ID | Version | State | Description |
+|---|---|---|---|
+| AC:US-001-01 | v1.0.0 | active | A customer can complete checkout with a single saved payment method. |
+| AC:US-001-04 | v1.0.0 | active | The order summary shows the \{payment-field\} of the chosen saved card. |
+| AC:US-001-05 | v1.0.0 | active | A customer can remove a saved payment method at checkout. |
 
-A customer can complete checkout with a single saved payment method.
+**AC:US-001-01**
 
 - **Aspect:** desktop, mobile
 - **Rationale:** Keeping checkout to one step reduces cart abandonment.
@@ -54,15 +69,11 @@ A customer can complete checkout with a single saved payment method.
 - **Also not in scope:**
     - International shipping.
 
-#### AC:US-001-04 (v1.0.0 - active)
-
-The order summary shows the \{payment-field\} of the chosen saved card.
+**AC:US-001-04**
 
 - **payment\_field:** card-holder, expiry-date, last-four-digits
 
-#### AC:US-001-05 (v1.0.0 - active)
-
-A customer can remove a saved payment method at checkout.
+**AC:US-001-05**
 
 - **Aspect:** desktop, mobile
 
@@ -77,11 +88,9 @@ As a guest, I want to check out without creating an account.
 
 **Acceptance criteria**
 
-#### AC:US-002-01 (v1.5.0 - deprecated - removal planned v2.1.0)
-
-A customer can check out as a guest, without creating an account.
-
-- removal planned v2.1.0
+| ID | Version | State | Description |
+|---|---|---|---|
+| AC:US-002-01 | v1.5.0 | deprecated, removal planned v2.1.0 | A customer can check out as a guest, without creating an account. |
 
 ### US-010
 
@@ -184,9 +193,13 @@ Charges a customer's saved card and returns the payment id.
 
 **Acceptance criteria**
 
-#### AC:FUNC-002-01 (v1.2.0 - active)
+| ID | Version | State | Description |
+|---|---|---|---|
+| AC:FUNC-002-01 | v1.2.0 | active | The API charges a saved card and returns the payment id. |
+| AC:FUNC-002-04 | v1.2.0 | active | The API declines a charge on a card that is \{decline-reason\}. |
+| AC:FUNC-002-05 | v1.2.0 | deprecated, removal planned v2.0.0 | The API returns the card's last four digits with the payment id. |
 
-The API charges a saved card and returns the payment id.
+**AC:FUNC-002-01**
 
 - **Aspect:** visa, mastercard
 - **Rationale:** The payment id lets the checkout page confirm the order without a second call.
@@ -195,17 +208,9 @@ The API charges a saved card and returns the payment id.
 - **Also not in scope:**
     - Refunds.
 
-#### AC:FUNC-002-04 (v1.2.0 - active)
-
-The API declines a charge on a card that is \{decline-reason\}.
+**AC:FUNC-002-04**
 
 - **decline\_reason:** expired, blocked
-
-#### AC:FUNC-002-05 (v1.2.0 - deprecated - removal planned v2.0.0)
-
-The API returns the card's last four digits with the payment id.
-
-- removal planned v2.0.0
 
 ### FUNC-003
 
