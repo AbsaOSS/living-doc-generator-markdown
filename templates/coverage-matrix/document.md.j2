@@ -1,4 +1,5 @@
-{#- A coverage-matrix document: the matrix's summary, planned work in the inner view, then each entity's rows. -#}
+{#- A coverage-matrix document: the matrix's summary, then one table per type with a row per entity, its ID linked to
+    its chapter; planned work in the inner view; then each entity's rows. -#}
 # {{ document.title }}
 
 *View: {{ document.view }}*
@@ -8,6 +9,17 @@
 {% with summary = document.summary %}
 {% include "coverage-matrix/summary.md.j2" %}
 {% endwith %}
+{% for group in document.groups %}
+
+**{{ group.heading }}**
+
+| ID | Title | State | Coverage | Counted | Covered | Partially covered | Not covered |
+|---|---|---|---|---|---|---|---|
+{% for entity in group.entities %}
+{% set summary = entity.summary %}
+| {% if entity.anchor %}{{ entity.id | anchored(entity.anchor) }}{% else %}{{ entity.id }}{% endif %} | {{ entity.title }} | {% for badge in entity.badges %}{{ badge | code }} {% endfor %}| {{ summary.coverage }} | {{ summary.counted }} | {{ summary.covered }} | {{ summary.partially_covered }} | {{ summary.not_covered }} |
+{% endfor %}
+{% endfor %}
 {% if document.planned %}
 
 ## Planned work

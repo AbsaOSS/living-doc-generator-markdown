@@ -59,6 +59,9 @@ One step renders one document type from the one `living-doc-toolkit` output it r
   - The numbers compare one by one: `US-2` before `US-10`, `FEAT-2024-3` before `FEAT-2024-10`.
   - An id without a number comes after the numbered ones; ids of equal numbers keep the input's order.
   - Acceptance criteria keep their authored order, and a UI test catalog keeps the input's order.
+- A coverage matrix opens with the matrix's totals, then one table per entity type
+  - A row per entity: its ID linked to its chapter, its title, state, coverage and counts.
+  - The figures are the input's own summaries, never recomputed.
 
 The three document types, one step each, over the files one `living-doc-toolkit` run wrote:
 

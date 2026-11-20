@@ -8,6 +8,22 @@
 |---|---|---|---|---|
 | 33.3% | 7 | 2 | 1 | 4 |
 
+**User Stories**
+
+| ID | Title | State | Coverage | Counted | Covered | Partially covered | Not covered |
+|---|---|---|---|---|---|---|---|
+| [US-001](#us-001) | Checkout with a saved payment method | `ACTIVE` | 44.4% | 3 | 1 | 1 | 1 |
+| [US-002](#us-002) | Checkout as a guest | `DEPRECATED` | 100.0% | 1 | 1 | 0 | 0 |
+| [US-010](#us-010) | Unified checkout | `ACTIVE` | not applicable | 0 | 0 | 0 | 0 |
+
+**Functionalities**
+
+| ID | Title | State | Coverage | Counted | Covered | Partially covered | Not covered |
+|---|---|---|---|---|---|---|---|
+| [FUNC-001](#func-001) | Validate card number | `ACTIVE` | not applicable | 0 | 0 | 0 | 0 |
+| [FUNC-002](#func-002) | Charge a saved card | `ACTIVE` | 0.0% | 3 | 0 | 0 | 3 |
+| [FUNC-003](#func-003) | Charge through the legacy gateway | `DEPRECATED` | not applicable | 0 | 0 | 0 | 0 |
+
 ## Planned work
 
 Planned criteria are not counted.

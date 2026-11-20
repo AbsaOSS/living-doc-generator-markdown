@@ -639,6 +639,7 @@ def _scenario(scenario: Scenario) -> ScenarioView:
 def _coverage_matrix(document: CoverageMatrixResult, title: str) -> CoverageMatrix:
     view = document.document.view
     planned = document.planned_summary
+    anchors = _anchors({entity.entity_id for entity in document.entities})
     return CoverageMatrix(
         title=title or DEFAULT_TITLES["coverage-matrix"],
         view=view,
@@ -652,14 +653,14 @@ def _coverage_matrix(document: CoverageMatrixResult, title: str) -> CoverageMatr
             if view == INNER
             else None
         ),
-        groups=_groups(document.entities, _coverage_entity, lambda entity: entity.type),
+        groups=_groups(document.entities, lambda entity: _coverage_entity(entity, anchors), lambda entity: entity.type),
     )
 
 
-def _coverage_entity(entity: EntityCoverage) -> CoverageEntity:
+def _coverage_entity(entity: EntityCoverage, anchors: dict[str, str]) -> CoverageEntity:
     return CoverageEntity(
         id=entity.entity_id,
-        anchor=anchor(entity.entity_id),
+        anchor=anchors.get(entity.entity_id),
         title=entity.title,
         badges=(_badge(entity.state),),
         summary=_summary(entity.summary),
