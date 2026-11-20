@@ -66,11 +66,29 @@ STUB_PREFIX = "Surface not yet instrumented"
 # A `coverage_pct` of null: the entity, or the matrix, counts no criterion.
 NOT_APPLICABLE = "not applicable"
 
+FEATURE = "DocumentedFeature"
+
 _GROUPS = (
     ("DocumentedUserStory", "User Stories"),
-    ("DocumentedFeature", "Features"),
+    (FEATURE, "Features"),
     ("DocumentedFunctionality", "Functionalities"),
 )
+
+# A technical project's overview counts a User Story's or Functionality's criteria by state, in this order; the release
+# view holds no `in_review` or `planned` criterion, so it shows only the states it holds.
+_STATE_COLUMNS = (
+    ("active", "Active"),
+    ("in_review", "In review"),
+    ("planned", "Planned"),
+    ("deprecated", "Deprecated"),
+)
+_RELEASE_STATES = {"active", "deprecated"}
+
+# A Feature's overview row counts its Functionalities instead.
+_FEATURE_COLUMNS = ("Functionalities",)
+
+# The version cell of a planned criterion without a target version.
+BACKLOG = "backlog"
 
 # A nested item, as a parser keeps it in its parent's string: `- ` or `-<TAB>` after the line's indent.
 _NESTED_ITEM_RE = re.compile(r"^-(?:[ \t]+(?P<text>.*))?$")
@@ -139,12 +157,12 @@ class NotLoaded:
 
 @dataclass(frozen=True)
 class Criterion:
-    """One acceptance criterion under its entity."""
+    """One acceptance criterion: its row in its entity's table, then the list fields its note below the table shows."""
 
     id: str
-    header: str
+    version: str
+    state: str
     description: str
-    lifecycle: Optional[str]
     variants: tuple[Variants, ...]
     rationale: Optional[str]
     also: tuple[Outline, ...]
@@ -204,6 +222,26 @@ class EntityGroup:
 
 
 @dataclass(frozen=True)
+class OverviewRow:
+    """One entity in its type's overview table, its counts under the table's columns."""
+
+    id: str
+    anchor: Optional[str]
+    title: str
+    badges: tuple[str, ...]
+    counts: tuple[int, ...]
+
+
+@dataclass(frozen=True)
+class OverviewTable:
+    """The entities of one type, in ascending id order, with what each counts."""
+
+    heading: str
+    columns: tuple[str, ...]
+    rows: tuple[OverviewRow, ...]
+
+
+@dataclass(frozen=True)
 class Selection:
     """What the transform's view filter kept, of how many."""
 
@@ -221,6 +259,7 @@ class TechnicalProject:
     view: str
     version: str
     selection: Selection
+    overview: tuple[OverviewTable, ...]
     groups: tuple[EntityGroup, ...]
     not_loaded: tuple[NotLoaded, ...]
 
@@ -395,6 +434,7 @@ def _technical_project(document: GeneratorReadyResult, title: str) -> TechnicalP
             included_criteria=selection.included_acceptance_criteria,
             total_criteria=selection.total_acceptance_criteria,
         ),
+        overview=_overview(entities, view, anchors),
         groups=_groups(
             entities,
             lambda entity: _entity_view(entity, view, anchors, under[entity.entity_id]),
@@ -409,15 +449,58 @@ def _groups(
 ) -> tuple[EntityGroup, ...]:
     """Records grouped by entity type in the canon's order, each group in ascending id order; an empty group is left
     out."""
-    groups = []
+    return tuple(
+        EntityGroup(heading=heading, entities=members) for _, heading, members in _by_type(records, build, type_of)
+    )
+
+
+def _by_type(
+    records: Sequence[Any], build: Callable[[Any], Any], type_of: Callable[[Any], str]
+) -> list[tuple[str, str, tuple[Any, ...]]]:
+    """Each entity type's built records, with the type and its heading: the types in the canon's order, each type's
+    records in ascending id order, a type without one left out."""
+    grouped = []
     for doc_type, heading in _GROUPS:
         members = sorted((build(record) for record in records if type_of(record) == doc_type), key=_id_order)
         if members:
-            groups.append(EntityGroup(heading=heading, entities=tuple(members)))
-    return tuple(groups)
+            grouped.append((doc_type, heading, tuple(members)))
+    return grouped
 
 
-def _id_order(entity: Union[EntityView, CoverageEntity]) -> tuple[bool, tuple[tuple[int, str], ...]]:
+def _overview(entities: list[Entity], view: str, anchors: dict[str, str]) -> tuple[OverviewTable, ...]:
+    """
+    One table per entity type, in the chapters' order: a User Story's or Functionality's criteria by state, only the
+    states the view holds, and a Feature's Functionalities. Counted from the input, never from coverage.
+    """
+    states = tuple(column for column in _STATE_COLUMNS if view == INNER or column[0] in _RELEASE_STATES)
+    tables = []
+    for doc_type, heading, rows in _by_type(
+        entities, lambda entity: _overview_row(entity, view, anchors, states), lambda entity: entity.type
+    ):
+        columns = _FEATURE_COLUMNS if doc_type == FEATURE else tuple(label for _, label in states)
+        tables.append(OverviewTable(heading=heading, columns=columns, rows=rows))
+    return tuple(tables)
+
+
+def _overview_row(
+    entity: Entity, view: str, anchors: dict[str, str], states: tuple[tuple[str, str], ...]
+) -> OverviewRow:
+    """A Feature's count is of the Functionalities its chapter lists, the ones the document does not hold included."""
+    if entity.type == FEATURE:
+        counts: tuple[int, ...] = (len([target for target in entity.functionalities if target]),)
+    else:
+        held: Counter[str] = Counter(criterion.state for criterion in entity.acceptance_criteria)
+        counts = tuple(held[state] for state, _ in states)
+    return OverviewRow(
+        id=entity.entity_id,
+        anchor=anchors.get(entity.entity_id),
+        title=entity.title,
+        badges=_entity_badges(entity, view),
+        counts=counts,
+    )
+
+
+def _id_order(entity: Union[EntityView, CoverageEntity, OverviewRow]) -> tuple[bool, tuple[tuple[int, str], ...]]:
     """
     An entity's place among its type's: by the numbers in its id, number by number and each by its value, so `US-2`
     comes before `US-10` and `FEAT-2024-3` before `FEAT-2024-10`; an id without a number after them. The sort is
@@ -535,26 +618,23 @@ def _page(page: PageRef, anchors: dict[str, str]) -> Page:
 
 
 def _criterion(criterion: AcceptanceCriterion) -> Criterion:
+    """A criterion's row: `v<version>`, or the backlog for a planned one without a version; its state as stored, and a
+    deprecated one's removal target."""
     return Criterion(
         id=criterion.id,
-        header=criterion.canonical_header(),
+        version=f"v{criterion.version}" if criterion.version else BACKLOG,
+        state=(
+            f"{criterion.state}, removal planned v{criterion.removal_planned}"
+            if criterion.removal_planned
+            else criterion.state
+        ),
         description=" ".join(criterion.description.split()),
-        lifecycle=_lifecycle(criterion),
         variants=_variants(criterion),
         rationale=criterion.rationale or None,
         also=_present_outlines(
             ("Also requires", criterion.preconditions), ("Also not in scope", criterion.not_in_scope)
         ),
     )
-
-
-def _lifecycle(criterion: AcceptanceCriterion) -> Optional[str]:
-    """The criterion's lifecycle row: its removal, its target version, or the backlog."""
-    if criterion.removal_planned is not None:
-        return f"removal planned v{criterion.removal_planned}"
-    if criterion.state == "planned":
-        return f"planned v{criterion.version}" if criterion.version else "backlog"
-    return None
 
 
 def _variants(criterion: AcceptanceCriterion) -> tuple[Variants, ...]:

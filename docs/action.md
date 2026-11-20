@@ -62,6 +62,16 @@ One step renders one document type from the one `living-doc-toolkit` output it r
 - A coverage matrix opens with the matrix's totals, then one table per entity type
   - A row per entity: its ID linked to its chapter, its title, state, coverage and counts.
   - The figures are the input's own summaries, never recomputed.
+- A technical project opens with one table per entity type, in place of a contents list
+  - A row per entity: its ID linked to its chapter, its title and state, then its counts.
+  - A User Story or a Functionality counts its acceptance criteria by state; the release view, which holds no
+    `in_review` or `planned` criterion, shows only the `active` and `deprecated` counts.
+  - A Feature counts the Functionalities its chapter lists.
+  - The counts are of the input's records, never of coverage.
+- A technical project shows each entity's acceptance criteria as one table: ID, version, state and description
+  - A planned criterion without a version shows `backlog`; a deprecated one shows its removal target after its state.
+  - A criterion's aspects, keyword values, rationale, and its own preconditions and not-in-scope items follow the
+    table, under the criterion's ID.
 
 The three document types, one step each, over the files one `living-doc-toolkit` run wrote:
 

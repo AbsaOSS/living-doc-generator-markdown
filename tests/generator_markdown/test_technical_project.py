@@ -21,7 +21,7 @@ from living_doc_utilities.contracts.common import AcceptanceCriterion
 from living_doc_utilities.contracts.envelope import ContractWarning
 
 from generator_markdown.renderer import escape
-from tests.samples import VIEWS, heading_anchors, rendered, sample, tokens
+from tests.samples import VIEWS, heading_anchors, release, rendered, sample, tokens
 
 CONTRACT = generator_ready.CONTRACT_ID
 SOURCE_URL = "https://github.com/absaoss/payments-service/blob/4f2c1e9a7b3d5f6081a2c3d4e5f60718293a4b5c/features/checkout.feature"
@@ -126,13 +126,15 @@ def test_a_deprecated_entity_shows_only_its_badge_in_the_release_view():
 
 
 @pytest.mark.parametrize("view", VIEWS)
-def test_a_deprecated_criterion_shows_its_state_in_its_header_and_its_removal_in_both_views(view):
+def test_a_deprecated_criterion_shows_its_state_and_its_removal_in_its_row_in_both_views(view):
     # Act
     block = _block(rendered(sample(CONTRACT, view)), "US-002")
 
     # Assert: a criterion carries no deprecation date or reason.
-    assert "#### AC:US-002-01 (v1.5.0 - deprecated - removal planned v2.1.0)\n" in block
-    assert "\n- removal planned v2.1.0\n" in block
+    assert (
+        "| AC:US-002-01 | v1.5.0 | deprecated, removal planned v2.1.0 | "
+        "A customer can check out as a guest, without creating an account. |\n"
+    ) in block
 
 
 def test_planned_and_backlog_criteria_show_in_the_inner_view():
@@ -140,11 +142,8 @@ def test_planned_and_backlog_criteria_show_in_the_inner_view():
     markdown = rendered(sample(CONTRACT, "inner"))
 
     # Assert
-    assert (
-        "#### AC:US-001-02 (v1.6.0 - planned)\n\nA customer can split payment across two saved cards.\n\n" in markdown
-    )
-    assert "\n- planned v1.6.0\n" in markdown
-    assert "#### AC:US-001-03 (planned)\n\nA customer can pay with a digital wallet.\n\n- backlog\n" in markdown
+    assert "| AC:US-001-02 | v1.6.0 | planned | A customer can split payment across two saved cards. |\n" in markdown
+    assert "| AC:US-001-03 | backlog | planned | A customer can pay with a digital wallet. |\n" in markdown
 
 
 def test_the_release_view_holds_no_planned_criterion_so_shows_no_planned_or_backlog_row():
@@ -159,24 +158,39 @@ def test_the_release_view_holds_no_planned_criterion_so_shows_no_planned_or_back
 
 
 @pytest.mark.parametrize("view", VIEWS)
-def test_every_criterion_header_is_its_canonical_header(view):
+def test_every_criterion_is_one_row_of_its_entitys_table_in_authored_order(view):
     # Arrange
     document = sample(CONTRACT, view)
 
     # Act
     markdown = rendered(document)
 
-    # Assert
-    headers = [line[len("#### ") :] for line in markdown.splitlines() if line.startswith("#### ")]
+    # Assert: no criterion has a heading of its own.
+    rows = re.findall(r"^\| AC:(.+?) \| (.+?) \| (.+?) \| (.+) \|$", markdown, re.MULTILINE)
     criteria = [criterion for entity in document.content.entities for criterion in entity.acceptance_criteria]
-    assert headers == [escape(criterion.canonical_header()) for criterion in criteria]
+    assert sorted(rows) == sorted(
+        (
+            escape(criterion.id),
+            f"v{criterion.version}" if criterion.version else "backlog",
+            escape(criterion.state)
+            + (f", removal planned v{criterion.removal_planned}" if criterion.removal_planned else ""),
+            escape(" ".join(criterion.description.split())),
+        )
+        for criterion in criteria
+    )
+    assert "\n#### " not in markdown
 
 
 @pytest.mark.parametrize(
-    ("version", "state", "header"),
-    [("1.2.0", "active", "#### AC:US-001-01 (v1.2.0 - active)\n"), (None, "planned", "#### AC:US-001-01 (planned)\n")],
+    ("version", "state", "row"),
+    [
+        ("1.2.0", "active", "| AC:US-001-01 | v1.2.0 | active | A customer can pay. |\n"),
+        ("1.2.0", "in_review", "| AC:US-001-01 | v1.2.0 | in\\_review | A customer can pay. |\n"),
+        ("1.7.0", "planned", "| AC:US-001-01 | v1.7.0 | planned | A customer can pay. |\n"),
+        (None, "planned", "| AC:US-001-01 | backlog | planned | A customer can pay. |\n"),
+    ],
 )
-def test_a_criterion_header_is_rendered_in_its_canonical_form(version, state, header):
+def test_a_criterion_row_shows_its_id_version_or_backlog_state_and_description(version, state, row):
     # Arrange
     document = sample(CONTRACT)
     _entity(document, "US-001").acceptance_criteria = [
@@ -184,10 +198,57 @@ def test_a_criterion_header_is_rendered_in_its_canonical_form(version, state, he
     ]
 
     # Act
-    markdown = rendered(document)
+    block = _block(rendered(document), "US-001")
 
     # Assert
-    assert header in markdown
+    assert f"**Acceptance criteria**\n\n| ID | Version | State | Description |\n|---|---|---|---|\n{row}" in block
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_criterions_list_fields_show_in_a_note_below_its_entitys_table(view):
+    # Act
+    block = _block(rendered(sample(CONTRACT, view)), "US-001")
+
+    # Assert: the note follows the table, nested items kept.
+    table_end = block.index("| AC:US-001-05 |")
+    assert block.index("**AC:US-001-01**\n") > table_end
+    assert (
+        "**AC:US-001-01**\n\n"
+        "- **Aspect:** desktop, mobile\n"
+        "- **Rationale:** Keeping checkout to one step reduces cart abandonment.\n"
+        "- **Also requires:**\n    - The cart has at least one item.\n"
+        "- **Also not in scope:**\n    - International shipping.\n"
+    ) in block
+    assert "**AC:US-001-05**\n\n- **Aspect:** desktop, mobile\n" in block
+
+
+def test_a_criterion_without_list_fields_has_no_note():
+    # Act
+    markdown = rendered(sample(CONTRACT, "inner"))
+
+    # Assert
+    assert "**AC:US-001-02**" not in markdown
+    assert "**AC:US-002-01**" not in markdown
+    assert "**AC:FUNC-002-05**" not in markdown
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_criterion_table_parses_as_one_table_of_four_cells_a_row_whatever_its_text(view):
+    # Arrange: a pipe and a line break in a description must not split or end the row.
+    document = sample(CONTRACT)
+    _entity(document, "US-002").acceptance_criteria[0].description = "Pay | refund\n| x | y |"
+    document = release(document) if view == "release" else document
+
+    # Act
+    block = _block(rendered(document), "US-002")
+
+    # Assert
+    parsed = tokens(block)
+    assert [t.type for t in parsed].count("table_open") == 1
+    assert [t.type for t in parsed].count("tr_open") == 2
+    assert [t.type for t in parsed].count("td_open") == 4
+    cells = [t.content for t in parsed if t.type == "inline"]
+    assert escape("Pay | refund | x | y |") in cells
 
 
 @pytest.mark.parametrize("view", VIEWS)
@@ -211,7 +272,7 @@ def test_a_keyword_criterion_shows_its_keywords_name_with_its_values_not_as_aspe
     markdown = rendered(sample(CONTRACT, view))
 
     # Assert
-    criterion = markdown[markdown.index("#### AC:US-001-04 ") : markdown.index("#### AC:US-001-05 ")]
+    criterion = markdown[markdown.index("**AC:US-001-04**\n") : markdown.index("**AC:US-001-05**\n")]
     assert "- **payment\\_field:** card-holder, expiry-date, last-four-digits\n" in criterion
     assert "Aspect" not in criterion
 
@@ -274,7 +335,7 @@ def test_an_id_whose_anchor_renderers_derive_differently_or_not_at_all_shows_unl
     markdown = rendered(document)
 
     # Assert
-    assert f"    - {escape(entity_id)} Checkout with a saved payment method\n" in markdown
+    assert f"| {escape(entity_id)} | Checkout with a saved payment method | `ACTIVE` |" in markdown
     assert f"- **User stories:** {escape(entity_id)}\n" in markdown
 
 
@@ -368,9 +429,9 @@ def test_the_collector_warnings_naming_an_entity_show_under_it_with_a_link_to_th
     # Act
     block = _block(rendered(sample(CONTRACT, "inner")), "US-001")
 
-    # Assert: before the first criterion's heading, so no criterion seems to hold them.
+    # Assert: before the criteria table, so no criterion seems to hold them.
     assert "**Not loaded from the input**\n\n" in block
-    assert block.index("**Not loaded from the input**") < block.index("\n#### ")
+    assert block.index("**Not loaded from the input**") < block.index("**Acceptance criteria**")
     assert (
         "- `MALFORMED_AC` Acceptance criterion declares its variants more than once (Aspect, payment\\_field); "
         f"keep one 'Aspect:' or one keyword. (features/checkout.feature, [line 31]({SOURCE_URL}#L31))\n"
@@ -535,3 +596,150 @@ def test_the_header_names_the_view_the_version_and_the_selection(view):
         f"{selection.included_acceptance_criteria} of {selection.total_acceptance_criteria} acceptance criteria "
         "selected*\n"
     ) in markdown
+
+
+def _overview(markdown: str) -> str:
+    """The overview: from its heading to the first entity chapter."""
+    return markdown[markdown.index("\n## Overview\n") : markdown.index("\n## User Stories\n")]
+
+
+def _every_state(view: str):
+    """The sample, its US-001 given an in_review and a deprecated criterion, so that it holds every criterion state."""
+    document = sample(CONTRACT)
+    _entity(document, "US-001").acceptance_criteria += [
+        AcceptanceCriterion(id="US-001-06", state="in_review", version="1.5.0", description="A customer saves a card."),
+        AcceptanceCriterion(
+            id="US-001-07", state="deprecated", version="1.0.0", removal_planned="2.0.0", description="A drop-down."
+        ),
+    ]
+    return release(document) if view == "release" else document
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_the_document_opens_with_one_overview_table_per_entity_type_in_place_of_a_contents_list(view):
+    # Act
+    markdown = rendered(sample(CONTRACT, view))
+
+    # Assert
+    assert "## Contents" not in markdown
+    assert markdown.index("\n## Overview\n") < markdown.index("\n## User Stories\n")
+    overview = _overview(markdown)
+    assert re.findall(r"^\*\*(.+)\*\*$", overview, re.MULTILINE) == ["User Stories", "Features", "Functionalities"]
+    assert [t.type for t in tokens(overview)].count("table_open") == 3
+
+
+def test_a_user_story_or_functionality_row_counts_its_criteria_by_state_in_the_inner_view():
+    # Act
+    overview = _overview(rendered(_every_state("inner")))
+
+    # Assert
+    header = "| ID | Title | State | Active | In review | Planned | Deprecated |\n|---|---|---|---|---|---|---|\n"
+    assert (
+        f"**User Stories**\n\n{header}"
+        "| [US-001](#us-001) | Checkout with a saved payment method | `ACTIVE` | 3 | 1 | 2 | 1 |\n"
+        "| [US-002](#us-002) | Checkout as a guest | `DEPRECATED` | 0 | 0 | 0 | 1 |\n"
+        "| [US-010](#us-010) | Unified checkout | `ACTIVE` | 0 | 0 | 0 | 0 |\n"
+    ) in overview
+    assert (
+        f"**Functionalities**\n\n{header}"
+        "| [FUNC-001](#func-001) | Validate card number | `ACTIVE` | 0 | 0 | 0 | 0 |\n"
+        "| [FUNC-002](#func-002) | Charge a saved card | `ACTIVE` | 2 | 0 | 2 | 1 |\n"
+        "| [FUNC-003](#func-003) | Charge through the legacy gateway | `DEPRECATED` | 0 | 0 | 0 | 0 |\n"
+    ) in overview
+
+
+def test_the_release_view_counts_only_the_active_and_deprecated_criteria_it_holds():
+    # Act
+    overview = _overview(rendered(_every_state("release")))
+
+    # Assert
+    header = "| ID | Title | State | Active | Deprecated |\n|---|---|---|---|---|\n"
+    assert (
+        f"**User Stories**\n\n{header}"
+        "| [US-001](#us-001) | Checkout with a saved payment method | `ACTIVE` | 3 | 1 |\n"
+        "| [US-002](#us-002) | Checkout as a guest | `DEPRECATED` | 0 | 1 |\n"
+        "| [US-010](#us-010) | Unified checkout | `ACTIVE` | 0 | 0 |\n"
+    ) in overview
+    assert "| [FUNC-002](#func-002) | Charge a saved card | `ACTIVE` | 2 | 1 |\n" in overview
+    assert "In review" not in overview
+    assert "Planned" not in overview
+
+
+@pytest.mark.parametrize(
+    ("view", "rows"),
+    [
+        (
+            "inner",
+            "| [FEAT-001](#feat-001) | Checkout page | `ACTIVE` `DERIVED` | 2 |\n"
+            "| [FEAT-002](#feat-002) | Payments API | `ACTIVE` `DERIVED` | 1 |\n"
+            "| [FEAT-003](#feat-003) | Legacy payment page | `DEPRECATED` `DERIVED` | 1 |\n",
+        ),
+        (
+            "release",
+            "| [FEAT-001](#feat-001) | Checkout page | | 2 |\n"
+            "| [FEAT-002](#feat-002) | Payments API | | 1 |\n"
+            "| [FEAT-003](#feat-003) | Legacy payment page | `DEPRECATED` | 1 |\n",
+        ),
+    ],
+)
+def test_a_feature_row_counts_the_functionalities_its_chapter_lists(view, rows):
+    # Arrange: one of them the document does not hold; the chapter lists it unlinked, and the row counts it.
+    document = sample(CONTRACT)
+    _entity(document, "FEAT-001").functionalities = ["FUNC-001", "FUNC-099"]
+    document = release(document) if view == "release" else document
+
+    # Act
+    markdown = rendered(document)
+
+    # Assert
+    header = "| ID | Title | State | Functionalities |\n|---|---|---|---|\n"
+    assert f"**Features**\n\n{header}{rows}" in _overview(markdown)
+    assert "- **Functionalities:** [FUNC-001](#func-001), FUNC-099\n" in _block(markdown, "FEAT-001")
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_a_type_with_no_entity_has_no_overview_table(view):
+    # Arrange
+    document = sample(CONTRACT, view)
+    document.content.entities = [entity for entity in document.content.entities if entity.type != "DocumentedFeature"]
+
+    # Act
+    overview = _overview(rendered(document))
+
+    # Assert
+    assert re.findall(r"^\*\*(.+)\*\*$", overview, re.MULTILINE) == ["User Stories", "Functionalities"]
+    assert "FEAT-" not in overview
+
+
+def test_the_link_to_what_was_not_loaded_stays_under_the_overview_tables_in_the_inner_view():
+    # Act
+    overview = _overview(rendered(sample(CONTRACT, "inner")))
+
+    # Assert
+    assert overview.endswith(
+        "| [FUNC-003](#func-003) | Charge through the legacy gateway | `DEPRECATED` | 0 | 0 | 0 | 0 |\n\n"
+        "- [Not loaded from the input](#not-loaded-from-the-input)\n"
+    )
+
+
+@pytest.mark.parametrize(("view", "columns"), [("inner", 7), ("release", 5)])
+def test_an_overview_id_and_title_holding_a_pipe_and_a_line_break_stay_in_their_cells(view, columns):
+    # Arrange: the contract gives an entity id no pattern; US-010 holds no criterion whose id names it.
+    document = sample(CONTRACT)
+    _entity(document, "US-001").title = "Pay | refund\n| x |"
+    _entity(document, "US-010").entity_id = "US|<b>10</b>\n| y |"
+    document = release(document) if view == "release" else document
+
+    # Act
+    overview = _overview(rendered(document))
+
+    # Assert: the User Stories table keeps its header and three rows, each of its columns.
+    parsed = tokens(overview)
+    types = [t.type for t in parsed]
+    user_stories = types[: types.index("table_close")]
+    assert user_stories.count("tr_open") == 4
+    assert user_stories.count("td_open") == 3 * columns
+    assert "html_inline" not in types
+    inline = [t.content for t in parsed if t.type == "inline"]
+    assert escape("Pay | refund | x |") in inline
+    assert any(escape("US|<b>10</b> | y |") in content for content in inline)

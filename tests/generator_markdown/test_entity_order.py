@@ -15,7 +15,7 @@
 #
 """
 A technical project and a coverage matrix list the entities of each type in ascending id order, whatever order the
-input holds them in: in the contents list, the chapters and the run report's render manifest. A criterion keeps its
+input holds them in: in the overview, the chapters and the run report's render manifest. A criterion keeps its
 authored order, and the input is only read.
 """
 
@@ -69,7 +69,7 @@ def _shuffled(contract_id, view):
 
 
 @pytest.mark.parametrize("view", VIEWS)
-def test_a_shuffled_technical_project_lists_its_entities_in_id_order_in_the_contents_and_the_chapters(view):
+def test_a_shuffled_technical_project_lists_its_entities_in_id_order_in_the_overview_and_the_chapters(view):
     # Arrange
     document = _shuffled(TECHNICAL_PROJECT, view)
 
@@ -77,8 +77,8 @@ def test_a_shuffled_technical_project_lists_its_entities_in_id_order_in_the_cont
     markdown = rendered(document)
 
     # Assert
-    contents = markdown[markdown.index("## Contents\n") : markdown.index("\n## User Stories\n")]
-    assert re.findall(r"^    - \[([^\]]+)\]", contents, re.MULTILINE) == ORDER[TECHNICAL_PROJECT]
+    overview = markdown[markdown.index("## Overview\n") : markdown.index("\n## User Stories\n")]
+    assert re.findall(r"^\| \[([^\]]+)\]", overview, re.MULTILINE) == ORDER[TECHNICAL_PROJECT]
     assert re.findall(r"^### (.+)$", markdown, re.MULTILINE) == ORDER[TECHNICAL_PROJECT]
 
 

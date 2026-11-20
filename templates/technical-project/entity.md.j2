@@ -55,15 +55,16 @@
 {% if entity.body.criteria %}
 
 **Acceptance criteria**
+
+| ID | Version | State | Description |
+|---|---|---|---|
 {% for criterion in entity.body.criteria %}
+| AC:{{ criterion.id }} | {{ criterion.version }} | {{ criterion.state }} | {{ criterion.description }} |
+{% endfor %}
+{% for criterion in entity.body.criteria if criterion.variants or criterion.rationale or criterion.also %}
 
-#### {{ criterion.header }}
+**AC:{{ criterion.id }}**
 
-{{ criterion.description }}
-
-{% if criterion.lifecycle %}
-- {{ criterion.lifecycle }}
-{% endif %}
 {% for variant in criterion.variants %}
 - **{{ variant.label }}:** {{ variant.values | join(", ") }}
 {% endfor %}
