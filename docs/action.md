@@ -55,6 +55,10 @@ One step renders one document type from the one `living-doc-toolkit` output it r
   - The release view leaves out the fields the
     [rendering rules](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts/rendering.md#fields-by-view)
     mark inner-only.
+- A technical project and a coverage matrix list the entities of each type in ascending order of their ids' numbers
+  - The numbers compare one by one: `US-2` before `US-10`, `FEAT-2024-3` before `FEAT-2024-10`.
+  - An id without a number comes after the numbered ones; ids of equal numbers keep the input's order.
+  - Acceptance criteria keep their authored order, and a UI test catalog keeps the input's order.
 
 The three document types, one step each, over the files one `living-doc-toolkit` run wrote:
 

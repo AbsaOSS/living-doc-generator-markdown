@@ -76,6 +76,9 @@ _GROUPS = (
 _NESTED_ITEM_RE = re.compile(r"^-(?:[ \t]+(?P<text>.*))?$")
 _BLANK_LINE_RE = re.compile(r"\n[ \t]*\n")
 
+# The numbers in an entity id, which order the entities of one type; ASCII digits only.
+_NUMBER_RE = re.compile(r"[0-9]+")
+
 # A URL with a control character: `urlsplit`, and so `safe_href`, reads it without the character, a renderer with it.
 # Or with a lone surrogate, which JSON can carry and no URL can encode.
 _CONTROL_RE = re.compile(r"[\x00-\x1f\x7f\ud800-\udfff]")
@@ -194,7 +197,7 @@ class EntityView:
 
 @dataclass(frozen=True)
 class EntityGroup:
-    """The entities of one type, in input order."""
+    """The entities of one type, in ascending id order."""
 
     heading: str
     entities: tuple[Any, ...]
@@ -404,13 +407,26 @@ def _technical_project(document: GeneratorReadyResult, title: str) -> TechnicalP
 def _groups(
     records: Sequence[Any], build: Callable[[Any], Any], type_of: Callable[[Any], str]
 ) -> tuple[EntityGroup, ...]:
-    """Records grouped by entity type in the canon's order, each group in input order; an empty group is left out."""
+    """Records grouped by entity type in the canon's order, each group in ascending id order; an empty group is left
+    out."""
     groups = []
     for doc_type, heading in _GROUPS:
-        members = tuple(build(record) for record in records if type_of(record) == doc_type)
+        members = sorted((build(record) for record in records if type_of(record) == doc_type), key=_id_order)
         if members:
-            groups.append(EntityGroup(heading=heading, entities=members))
+            groups.append(EntityGroup(heading=heading, entities=tuple(members)))
     return tuple(groups)
+
+
+def _id_order(entity: Union[EntityView, CoverageEntity]) -> tuple[bool, tuple[tuple[int, str], ...]]:
+    """
+    An entity's place among its type's: by the numbers in its id, number by number and each by its value, so `US-2`
+    comes before `US-10` and `FEAT-2024-3` before `FEAT-2024-10`; an id without a number after them. The sort is
+    stable, so ids of equal numbers keep their input order.
+    """
+    # Each number as its digits without leading zeros, compared by length, then digit by digit, as `int()` would
+    # compare them: `int()` itself refuses a run of more than 4300 digits.
+    numbers = tuple((len(digits), digits) for digits in (run.lstrip("0") for run in _NUMBER_RE.findall(entity.id)))
+    return (not numbers, numbers)
 
 
 def _entity_view(entity: Entity, view: str, anchors: dict[str, str], not_loaded: tuple[NotLoaded, ...]) -> EntityView:
