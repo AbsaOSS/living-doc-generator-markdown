@@ -128,6 +128,7 @@ What realises each fact of [`docs/action.md`](docs/action.md), the action's refe
 - A User Story's or Functionality's criteria by state, only `active` and `deprecated` in the release view; a Feature's Functionalities → `generator_markdown/presentation.py::_overview_row` and `generator_markdown/presentation.py::_STATE_COLUMNS`
 - Each entity's criteria as one table, `backlog` and the removal target in their cells → `generator_markdown/presentation.py::_criterion`
 - A criterion's list fields below the table, under its ID → `tests/generator_markdown/test_technical_project.py::test_a_criterions_list_fields_show_in_a_note_below_its_entitys_table`
+- A catalog's `@skip` scenario: the badge `SKIPPED`, its criteria under *Skipped, not counted*, the exact tag only → `generator_markdown/presentation.py::_scenario`, `generator_markdown/presentation.py::SKIP_TAG` and `tests/generator_markdown/test_ui_test_catalog.py::test_only_the_exact_skip_tag_marks_a_scenario_skipped`
 - The document-type table equals the code → `tests/docs/test_option_lists.py::test_the_document_type_table_equals_the_code`
 - The input table equals `action.yml` → `tests/docs/test_option_lists.py::test_the_input_table_equals_action_yml`
 - An empty `output-path` is the default → `generator_markdown/action_inputs.py::ActionInputs.from_environment` and `generator_markdown/action_inputs.py::DEFAULT_OUTPUT_PATH`
