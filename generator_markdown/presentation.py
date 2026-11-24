@@ -60,6 +60,14 @@ ASPECT_LABEL = "Aspect"
 DERIVED_BADGE = "DERIVED"
 DEPRECATED_BADGE = "DEPRECATED"
 
+# A scenario's own tag, matched exactly as `ui-tests` holds it, that the test runner skips: such a scenario covers
+# nothing, so the coverage matrix counts none of its criteria (`living-doc-utilities` rendering.md § Coverage). The
+# catalog marks it, and lists its criteria as linked but not counted, in both views.
+SKIP_TAG = "@skip"
+SKIPPED_BADGE = "SKIPPED"
+COVERS_LABEL = "Covers"
+SKIPPED_COVERS_LABEL = "Skipped, not counted"
+
 # The rendering table's wording for a Feature's `stub_reason`.
 STUB_PREFIX = "Surface not yet instrumented"
 
@@ -274,11 +282,13 @@ class Covered:
 
 @dataclass(frozen=True)
 class ScenarioView:
-    """One Gherkin scenario: its tags, the criteria it covers and a link to its source."""
+    """One Gherkin scenario: its badges, its tags, the criteria it links under their label and a link to its source."""
 
     id: str
     title: str
+    badges: tuple[str, ...]
     tags: tuple[str, ...]
+    covers_label: str
     covers: tuple[Covered, ...]
     source: Link
 
@@ -702,10 +712,13 @@ def _linked_group(group: LinkedScenarios) -> LinkedGroup:
 
 
 def _scenario(scenario: Scenario) -> ScenarioView:
+    skipped = SKIP_TAG in scenario.tags
     return ScenarioView(
         id=scenario.scenario_id,
         title=scenario.title,
+        badges=(SKIPPED_BADGE,) if skipped else (),
         tags=tuple(scenario.tags),
+        covers_label=SKIPPED_COVERS_LABEL if skipped else COVERS_LABEL,
         covers=tuple(Covered(ac_id=link.id, aspect=link.aspect) for link in scenario.acceptance_criteria),
         source=_source_link(scenario.source_ref),
     )
@@ -817,13 +830,19 @@ def _ui_test_catalog_manifest(presentation: UiTestCatalog) -> dict[str, Any]:
             values = covered.setdefault(cover.ac_id, [])
             if cover.aspect and cover.aspect not in values:
                 values.append(cover.aspect)
+    # A scenario listed in several groups is the same scenario: the manifest names it, and its badges, once.
+    by_id: dict[str, ScenarioView] = {}
+    for scenario in scenarios:
+        by_id.setdefault(scenario.id, scenario)
     return {
         "view": presentation.view,
         "entities": _unique(entities),
         "acceptance_criteria": list(covered),
         "aspects": [{"ac_id": ac_id, "label": None, "values": values} for ac_id, values in covered.items() if values],
-        "badges": [],
-        "scenarios": _unique([scenario.id for scenario in scenarios]),
+        "badges": [
+            {"id": scenario.id, "badges": list(scenario.badges)} for scenario in by_id.values() if scenario.badges
+        ],
+        "scenarios": list(by_id),
         "not_loaded": [],
     }
 
