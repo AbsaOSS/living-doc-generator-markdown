@@ -72,6 +72,9 @@ One step renders one document type from the one `living-doc-toolkit` output it r
   - A planned criterion without a version shows `backlog`; a deprecated one shows its removal target after its state.
   - A criterion's aspects, keyword values, rationale, and its own preconditions and not-in-scope items follow the
     table, under the criterion's ID.
+- A UI test catalog marks a scenario tagged `@skip` with the badge `SKIPPED`
+  - Its criteria show under *Skipped, not counted* in place of *Covers*: the coverage matrix counts none of them.
+  - Only the scenario's own tag marks it, exactly `@skip`; its tags still list it, in both views.
 
 The three document types, one step each, over the files one `living-doc-toolkit` run wrote:
 

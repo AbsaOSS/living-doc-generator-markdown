@@ -16,7 +16,8 @@
 import pytest
 from living_doc_utilities.contracts import ui_test_catalog
 
-from tests.samples import rendered, sample
+from generator_markdown.presentation import present, render_manifest
+from tests.samples import release, rendered, sample
 
 CONTRACT = ui_test_catalog.CONTRACT_ID
 SCENARIOS = (
@@ -29,6 +30,27 @@ SCENARIOS = (
     "    - **Source:** [AzureDevOps checkout.feature\\#12]"
     "(https://dev.azure.com/absaoss/payments/_workitems/edit/checkout.feature#12)\n"
 )
+SKIPPED_SCENARIOS = (
+    "- **SCN-001** Customer completes checkout with a saved card `SKIPPED`\n"
+    "    - **Skipped, not counted:** US-001-01 (desktop), US-001-01 (mobile), US-001-04 (card-holder)\n"
+    "    - **Tags:** smoke, @skip\n"
+    "    - **Source:** [GitHub checkout.feature](https://github.com/absaoss/payments-service/issues/checkout.feature)\n"
+    "- **SCN-002** Customer completes checkout as a guest\n"
+    "    - **Covers:** US-002-01\n"
+    "    - **Source:** [AzureDevOps checkout.feature\\#12]"
+    "(https://dev.azure.com/absaoss/payments/_workitems/edit/checkout.feature#12)\n"
+)
+
+
+def tagged(document, tag):
+    """`document` with `tag` added once to SCN-001's tags, in every group that lists it; the groups may share one
+    scenario object."""
+    for feature_file in document.feature_files:
+        groups = feature_file.linked_to_user_story + feature_file.linked_to_functionality
+        for scenario in [scenario for group in groups for scenario in group.scenarios] + feature_file.unlinked:
+            if scenario.scenario_id == "SCN-001" and tag not in scenario.tags:
+                scenario.tags.append(tag)
+    return document
 
 
 def test_each_feature_files_scenarios_show_linked_to_a_user_story_to_a_functionality_and_unlinked():
@@ -51,6 +73,47 @@ def test_no_field_depends_on_the_view():
 
     # Assert
     assert release == inner.replace("*View: inner*", "*View: release*")
+
+
+def test_a_scenario_tagged_skip_shows_skipped_with_its_criteria_as_not_counted():
+    # Act
+    markdown = rendered(tagged(sample(CONTRACT), "@skip"))
+
+    # Assert
+    assert markdown == (
+        "# UI test catalog\n\n*View: inner*\n\n## checkout.feature\n\n"
+        f"### Linked to a User Story\n\n**US-001**\n\n{SKIPPED_SCENARIOS}\n"
+        f"### Linked to a Functionality\n\n**FUNC-001**\n\n{SKIPPED_SCENARIOS}\n"
+        f"### Unlinked\n\n{SKIPPED_SCENARIOS}"
+    )
+
+
+@pytest.mark.parametrize("tag", ["@Skip", "@SKIP", "skip", "@skipped", "@skip-on-ci"])
+def test_only_the_exact_skip_tag_marks_a_scenario_skipped(tag):
+    # Act
+    markdown = rendered(tagged(sample(CONTRACT), tag))
+
+    # Assert
+    assert markdown == rendered(sample(CONTRACT)).replace("**Tags:** smoke\n", f"**Tags:** smoke, {tag}\n")
+
+
+def test_a_skipped_scenario_shows_the_same_in_both_views():
+    # Act
+    inner = rendered(tagged(sample(CONTRACT), "@skip"))
+    release_markdown = rendered(release(tagged(sample(CONTRACT), "@skip")))
+
+    # Assert
+    assert release_markdown == inner.replace("*View: inner*", "*View: release*")
+
+
+def test_the_manifest_names_a_skipped_scenarios_badge_once_and_keeps_its_criteria():
+    # Act
+    manifest = render_manifest(present(tagged(sample(CONTRACT), "@skip")))
+
+    # Assert
+    unskipped = render_manifest(present(sample(CONTRACT)))
+    assert manifest["badges"] == [{"id": "SCN-001", "badges": ["SKIPPED"]}]
+    assert manifest == {**unskipped, "badges": manifest["badges"]}
 
 
 def test_an_empty_group_is_left_out():
