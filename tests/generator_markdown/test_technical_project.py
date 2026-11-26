@@ -582,7 +582,7 @@ def test_the_title_is_the_document_title_input_then_the_inputs_own_then_the_defa
 
 
 @pytest.mark.parametrize("view", VIEWS)
-def test_the_header_names_the_view_the_version_and_the_selection(view):
+def test_the_header_names_the_version_and_the_selection_and_no_view(view):
     # Arrange
     document = sample(CONTRACT, view)
     selection = document.document.selection_summary
@@ -590,12 +590,13 @@ def test_the_header_names_the_view_the_version_and_the_selection(view):
     # Act
     markdown = rendered(document)
 
-    # Assert
-    assert (
-        f"*View: {view} · version 1.4.0 · {selection.included_entities} of {selection.total_entities} entities and "
-        f"{selection.included_acceptance_criteria} of {selection.total_acceptance_criteria} acceptance criteria "
-        "selected*\n"
-    ) in markdown
+    # Assert: the file name carries the view.
+    assert markdown.startswith(
+        f"# Payments service\n\n*version 1.4.0 · {selection.included_entities} of {selection.total_entities} entities "
+        f"and {selection.included_acceptance_criteria} of {selection.total_acceptance_criteria} acceptance criteria "
+        "selected*\n\n## Overview\n"
+    )
+    assert "View:" not in markdown
 
 
 def _overview(markdown: str) -> str:

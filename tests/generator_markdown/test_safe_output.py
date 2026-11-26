@@ -19,7 +19,7 @@ rejects, and no authored value becomes a heading, a list, a link or any other Ma
 """
 
 from itertools import count
-from typing import Any, Iterator, Literal, get_origin
+from typing import Any, Iterator, Literal, get_args, get_origin
 
 import pytest
 from living_doc_utilities.authoring.url_policy import safe_href
@@ -91,9 +91,14 @@ def hostile(document: Any, url: str = HOSTILE_URLS[0]) -> Any:
 
 def _make_hostile(model: BaseModel, texts: Iterator[int], url: str) -> None:
     for name, field in type(model).model_fields.items():
-        if name in _KEPT or get_origin(field.annotation) is Literal:
+        if name in _KEPT or _is_literal(field.annotation):
             continue
         setattr(model, name, _hostile_value(name, getattr(model, name), texts, url))
+
+
+def _is_literal(annotation: Any) -> bool:
+    """A `Literal` field, or an optional one, such as a catalog link's criterion `state`."""
+    return get_origin(annotation) is Literal or any(get_origin(arg) is Literal for arg in get_args(annotation))
 
 
 def _hostile_value(name: str, value: Any, texts: Iterator[int], url: str) -> Any:
@@ -122,6 +127,18 @@ def _hostile_markdown(request) -> str:
     return rendered(hostile(sample(contract_id, view), url), title=HOSTILE_TEXTS[0])
 
 
+@pytest.fixture(name="clean_markdown")
+def _clean_markdown(request) -> str:
+    """The same document and view as `hostile_markdown`'s, unchanged."""
+    contract_id, view, _ = request.node.callspec.params["hostile_markdown"]
+    return rendered(sample(contract_id, view), title=HOSTILE_TEXTS[0])
+
+
+def _template_blocks(markdown: str) -> list[tuple[str, str]]:
+    """The separators and code blocks, which only a template writes: a catalog's `---` and `gherkin` blocks."""
+    return [(token.type, token.info) for token in tokens(markdown) if token.type in ("hr", "fence")]
+
+
 def test_the_hostile_fixture_reaches_every_document(hostile_markdown):
     # Assert: the hostile values are rendered, as text, so the checks below look at them.
     assert MARKER in hostile_markdown
@@ -137,9 +154,19 @@ def test_each_hostile_url_reaches_a_rendered_url_field(view, url):
     assert f"Linked issue: {' '.join(url.split())}" in text or f">{' '.join(url.split())}" in text
 
 
+def _outside_code_blocks(markdown: str) -> str:
+    """`markdown` without the lines of its code blocks, whose text a renderer shows as written, `<` included."""
+    lines = markdown.split("\n")
+    for token in tokens(markdown):
+        if token.type == "fence" and token.map:
+            lines[token.map[0] : token.map[1]] = [""] * (token.map[1] - token.map[0])
+    return "\n".join(lines)
+
+
 def test_no_raw_html_reaches_the_markdown(hostile_markdown):
-    # Assert: every `<` is written as an entity, so no tag can open.
-    assert "<" not in hostile_markdown
+    # Assert: every `<` outside a template's code block is written as an entity, so no tag can open; inside one, a
+    # catalog's steps are shown as written.
+    assert "<" not in _outside_code_blocks(hostile_markdown)
     assert not [t for t in tokens(hostile_markdown) if t.type in ("html_block", "html_inline")]
 
 
@@ -156,13 +183,17 @@ def test_every_link_is_one_safe_href_keeps_or_an_entitys_place_in_the_document(h
             assert safe_href(href) == href, href
 
 
-def test_no_authored_value_becomes_a_heading_a_list_a_link_or_another_block(hostile_markdown):
+def test_no_authored_value_becomes_a_heading_a_list_a_link_or_another_block(hostile_markdown, clean_markdown):
     # Arrange
     flat = tokens(hostile_markdown)
 
     # Assert: a template's heading may hold an authored value, as text; an injected one would start with the marker.
     assert not [text for text in heading_texts(hostile_markdown) if text.startswith(MARKER)]
-    assert not [t for t in flat if t.type in ("image", "hr", "blockquote_open", "code_block", "fence")]
+    assert not [t for t in flat if t.type in ("image", "blockquote_open", "code_block")]
+    # A separator or a code block is the template's, so the hostile document has the same ones as the clean one: an
+    # authored `---` or fence inside a `gherkin` block stays its text.
+    assert _template_blocks(hostile_markdown) == _template_blocks(clean_markdown)
+    assert {info for _, info in _template_blocks(hostile_markdown)} <= {"", "gherkin"}
     # A template's list item or link may hold an authored value; an injected one would start with the marker. An item
     # nested in another is skipped: a bullet-list entry's `- ` line is a nested item by design (`rendering.md`,
     # Records and presentation), so its text starts with what the author wrote.

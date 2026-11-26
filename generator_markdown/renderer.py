@@ -132,6 +132,7 @@ def _environment(templates_dir: Path) -> Environment:
             "anchored": _anchored,
             "code": _code,
             "indent": _indent,
+            "gherkin": _gherkin,
         }
     )
     return environment
@@ -190,6 +191,15 @@ def _code(text: str) -> Markdown:
     fence = "`" * (longest + 1)
     pad = " " if content.startswith("`") or content.endswith("`") else ""
     return Markdown(f"{fence}{pad}{content}{pad}{fence}")
+
+
+def _gherkin(lines: Iterable[str]) -> Markdown:
+    """Gherkin lines as written, in a `gherkin` code block: a code block shows its text literally, and its fence is
+    longer than any backtick run inside it, so no line closes it."""
+    content = "\n".join(lines)
+    longest = max((len(run) for run in re.findall(r"`+", content)), default=0)
+    fence = "`" * max(3, longest + 1)
+    return Markdown(f"{fence}gherkin\n{content}\n{fence}")
 
 
 def _indent(depth: int) -> Markdown:

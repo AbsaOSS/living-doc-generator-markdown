@@ -1,9 +1,0 @@
-{#- One scenario, with its badges, the criteria it links under their label, its tags and its source. -#}
-- **{{ scenario.id }}** {{ scenario.title }}{% for badge in scenario.badges %} {{ badge | code }}{% endfor +%}
-{% if scenario.covers %}
-    - **{{ scenario.covers_label }}:** {% for covered in scenario.covers %}{{ covered.ac_id }}{% if covered.aspect %} ({{ covered.aspect }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor +%}
-{% endif %}
-{% if scenario.tags %}
-    - **Tags:** {{ scenario.tags | join(", ") }}
-{% endif %}
-    - **Source:** {{ scenario.source | link }}

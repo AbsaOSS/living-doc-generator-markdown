@@ -1,6 +1,6 @@
 # Payments service
 
-*View: release · version 1.4.0 · 9 of 9 entities and 7 of 11 acceptance criteria selected*
+*version 1.4.0 · 9 of 9 entities and 7 of 11 acceptance criteria selected*
 
 ## Overview
 

@@ -37,7 +37,7 @@ ENV_FILE=".env.local"
 VENV=".venv-local-integration"
 
 # Every setting `.env.local` may hold; a line with any other key is ignored and reported by its number only.
-KEYS="TECHNICAL_PROJECT_INPUT UI_TEST_CATALOG_INPUT COVERAGE_MATRIX_INPUT OUT_DIR PYTHON"
+KEYS="TECHNICAL_PROJECT_INPUT UI_TEST_CATALOG_INPUT COVERAGE_MATRIX_INPUT RELEASE_VERSION OUT_DIR PYTHON"
 REQUIRED="TECHNICAL_PROJECT_INPUT UI_TEST_CATALOG_INPUT COVERAGE_MATRIX_INPUT"
 
 die() { printf '%s: %s\n' "$ME" "$*" >&2; exit 1; }
@@ -262,8 +262,8 @@ GITHUB_OUTPUT_FILE="$VENV/github-output.txt"
 
 now_ms() { "$VPY" -E -c 'import time; print(int(time.time() * 1000))' | tr -d '\r'; }
 
-# Render one document type as the action does - `main.py` with `-E`, its three inputs alone in its environment, no
-# title, so the title is the input's - then check and report the document against the file it read.
+# Render one document type as the action does - `main.py` with `-E`, its inputs and `RELEASE_VERSION` alone in its
+# environment, no title, so the title is the input's - then check and report the document against the file it read.
 generate() {  # generate DOCUMENT_TYPE INPUT
   local document_type="$1" input="$2" started finished status=0
   echo
@@ -271,11 +271,11 @@ generate() {  # generate DOCUMENT_TYPE INPUT
   : > "$GITHUB_OUTPUT_FILE"
   started="$(now_ms)"
   run env GITHUB_OUTPUT="$GITHUB_OUTPUT_FILE" INPUT_DOCUMENT_TYPE="$document_type" INPUT_SOURCE_PATH="$input" \
-    INPUT_OUTPUT_PATH="$OUTPUT_DIR" "$VPY" -E main.py || status=$?
+    INPUT_OUTPUT_PATH="$OUTPUT_DIR" INPUT_RELEASE_VERSION="$CFG_RELEASE_VERSION" "$VPY" -E main.py || status=$?
   finished="$(now_ms)"
   [ "$status" -eq 0 ] || die "the generator failed on '$document_type' (exit $status); its log is above"
   run "$VPY" -E -X utf8 -m tools.local_integration report "$document_type" "$input" "$OUTPUT_DIR" \
-    "$((finished - started))" || die "the '$document_type' document failed its check"
+    "$((finished - started))" --release-version "$CFG_RELEASE_VERSION" || die "the '$document_type' document failed its check"
 }
 
 generate technical-project "$TECHNICAL_PROJECT_INPUT"

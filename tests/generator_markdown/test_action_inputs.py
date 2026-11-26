@@ -133,3 +133,55 @@ def test_an_output_path_with_a_line_break_names_the_input_on_one_line(valid_inpu
         f"Input `output-path` is {output_path!r}, a path with a line break, which the `output-path` output cannot carry."
     )
     assert "\n" not in message
+
+
+@pytest.mark.parametrize(("release_version", "expected"), [(None, ""), ("", ""), ("  v1.2.0  ", "v1.2.0")])
+def test_the_release_version_is_optional_and_read_as_a_plain_string(
+    valid_inputs, monkeypatch, release_version, expected
+):
+    # Arrange
+    if release_version is not None:
+        monkeypatch.setenv("INPUT_RELEASE_VERSION", release_version)
+
+    # Act & Assert
+    assert ActionInputs.from_environment().release_version == expected
+
+
+@pytest.mark.parametrize("release_version", ["", "1.2.0", "not a version"])
+def test_the_inner_view_names_its_files_inner_and_ignores_the_release_version(
+    valid_inputs, monkeypatch, release_version
+):
+    # Arrange
+    monkeypatch.setenv("INPUT_RELEASE_VERSION", release_version)
+
+    # Act & Assert
+    assert ActionInputs.from_environment().view_name("inner") == "inner"
+
+
+@pytest.mark.parametrize(("release_version", "expected"), [("1.2.0", "release-v1.2.0"), ("v1.2.0", "release-v1.2.0")])
+def test_the_release_view_names_its_files_by_the_release_version_with_or_without_its_v(
+    valid_inputs, monkeypatch, release_version, expected
+):
+    # Arrange
+    monkeypatch.setenv("INPUT_RELEASE_VERSION", release_version)
+
+    # Act & Assert
+    assert ActionInputs.from_environment().view_name("release") == expected
+
+
+@pytest.mark.parametrize("release_version", [None, "", "   "])
+def test_the_release_view_without_a_release_version_names_the_input(valid_inputs, monkeypatch, release_version):
+    # Arrange
+    if release_version is not None:
+        monkeypatch.setenv("INPUT_RELEASE_VERSION", release_version)
+    inputs = ActionInputs.from_environment()
+
+    # Act
+    with pytest.raises(ActionInputError) as error:
+        inputs.view_name("release")
+
+    # Assert
+    assert str(error.value) == (
+        "Input `release-version` is required for a release-view input: the release the document describes, "
+        "as `X.Y.Z` or `vX.Y.Z`."
+    )

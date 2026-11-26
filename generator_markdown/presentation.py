@@ -25,7 +25,8 @@ can move into `living-doc-utilities` without a caller seeing a change.
 
 import re
 from collections import Counter
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
+from pathlib import PurePosixPath
 from typing import Any, Callable, Optional, Sequence, Union
 
 from living_doc_utilities.authoring.url_policy import safe_href
@@ -40,8 +41,12 @@ from living_doc_utilities.contracts.coverage_matrix import (
 from living_doc_utilities.contracts.doc_entities import Entity, PageRef
 from living_doc_utilities.contracts.envelope import ContractWarning
 from living_doc_utilities.contracts.generator_ready import GeneratorReadyResult
-from living_doc_utilities.contracts.ui_test_catalog import LinkedScenarios, UiTestCatalogResult
-from living_doc_utilities.contracts.ui_tests import Scenario
+from living_doc_utilities.contracts.ui_test_catalog import (
+    CatalogAcLink,
+    CatalogScenario,
+    FeatureFileCatalog,
+    UiTestCatalogResult,
+)
 
 INNER = "inner"
 RELEASE = "release"
@@ -67,6 +72,18 @@ SKIP_TAG = "@skip"
 SKIPPED_BADGE = "SKIPPED"
 COVERS_LABEL = "Covers"
 SKIPPED_COVERS_LABEL = "Skipped, not counted"
+
+
+NOT_LINKED_HEADING = "Not linked to an entity"
+TEST_PREFIX = "Test: "
+# The inner view marks a test that links no criterion.
+NO_AC_BADGE = "NO AC"
+# A scenario's `@AC:` tags are its links, which `Covers` shows; the rest are its tags.
+AC_TAG_PREFIX = "@AC:"
+# An Outline's examples tables open with one of these keyword lines, which the parser reads in English only; their
+# rows but the first, the header, are the examples.
+_EXAMPLES_RE = re.compile(r"^\s*(?:Examples|Scenarios):")
+_TABLE_ROW_RE = re.compile(r"^\s*\|")
 
 # The rendering table's wording for a Feature's `stub_reason`.
 STUB_PREFIX = "Surface not yet instrumented"
@@ -274,50 +291,128 @@ class TechnicalProject:
 
 @dataclass(frozen=True)
 class Covered:
-    """A criterion a scenario links to, and the one aspect value it covers; none for a bare link."""
+    """A criterion a test links, linked to its entity's chapter, and the one aspect value it covers; none for a bare
+    link."""
 
-    ac_id: str
+    link: Link
     aspect: Optional[str]
 
 
 @dataclass(frozen=True)
-class ScenarioView:
-    """One Gherkin scenario: its badges, its tags, the criteria it links under their label and a link to its source."""
+class ScenarioMeta:
+    """A test's metadata, in the order they show: its status badges, its rule, the criteria it links under their
+    label, its examples, its tags but the `@AC:` ones, and its source."""
 
-    id: str
-    title: str
     badges: tuple[str, ...]
-    tags: tuple[str, ...]
+    rule: Optional[str]
     covers_label: str
     covers: tuple[Covered, ...]
+    examples: Optional[str]
+    tags: tuple[str, ...]
     source: Link
 
 
 @dataclass(frozen=True)
-class LinkedGroup:
-    """The scenarios one file links to one entity."""
+class ScenarioView:
+    """One test's chapter: its heading's name, its metadata and its steps as written. `rule_background` is its rule's
+    `Background:`, which shows before the rule's first test only."""
 
-    entity_id: str
-    scenarios: tuple[ScenarioView, ...]
+    name: str
+    anchor: Optional[str]
+    rule_background: tuple[str, ...]
+    meta: ScenarioMeta
+    steps: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class CriterionRow:
+    """One criterion and one test that links it: the criterion's state badge, none for a criterion no document holds;
+    `SKIPPED` for a skipped test; the aspect values the test covers and its tags."""
+
+    ac_id: str
+    state: Optional[str]
+    test: Link
+    skipped: Optional[str]
+    aspects: tuple[str, ...]
+    tags: tuple[str, ...]
+
+
+@dataclass(frozen=True)
+class TestedEntity:
+    """A User Story or Functionality a test links: how many tests do, and a row per criterion and test."""
+
+    id: str
+    summary: str
+    rows: tuple[CriterionRow, ...]
+
+
+@dataclass(frozen=True)
+class EntityPart:
+    """The User Stories, or the Functionalities, that tests link."""
+
+    heading: str
+    sentence: str
+    entities: tuple[TestedEntity, ...]
 
 
 @dataclass(frozen=True)
 class FeatureFile:
-    """One `.feature` file's scenarios: linked to a User Story, linked to a Functionality, unlinked."""
+    """One `.feature` file's chapter: its name linked to it, the entities its tests link, its source, its
+    `Background:` and its tests."""
+
+    link: Link
+    entities_label: str
+    entities: tuple[Link, ...]
+    source: Link
+    background: tuple[str, ...]
+    scenarios: tuple[ScenarioView, ...]
+
+
+@dataclass(frozen=True)
+class FilePart:
+    """The feature files whose tests link a User Story, or else a Functionality."""
+
+    heading: str
+    sentence: str
+    files: tuple[FeatureFile, ...]
+
+
+@dataclass(frozen=True)
+class UnlinkedFile:
+    """A feature file none of whose tests links a criterion, and how many tests it holds."""
 
     name: str
-    user_stories: tuple[LinkedGroup, ...]
-    functionalities: tuple[LinkedGroup, ...]
-    unlinked: tuple[ScenarioView, ...]
+    tests: str
+
+
+@dataclass(frozen=True)
+class NotLinked:
+    """The inner view's last part: the feature files none of whose tests links a criterion."""
+
+    heading: str
+    sentence: str
+    files: tuple[UnlinkedFile, ...]
+
+
+@dataclass(frozen=True)
+class ContentsEntry:
+    """A part in the table of contents, with its chapters."""
+
+    part: Link
+    chapters: tuple[Link, ...]
 
 
 @dataclass(frozen=True)
 class UiTestCatalog:
-    """A `ui-test-catalog` document."""
+    """A `ui-test-catalog` document; `home` is its title's anchor, none when the title has none of its own."""
 
     title: str
     view: str
-    feature_files: tuple[FeatureFile, ...]
+    home: Optional[str]
+    contents: tuple[ContentsEntry, ...]
+    entity_parts: tuple[EntityPart, ...]
+    file_parts: tuple[FilePart, ...]
+    not_linked: Optional[NotLinked]
 
 
 @dataclass(frozen=True)
@@ -383,6 +478,22 @@ class CoverageMatrix:
     summary: Summary
     planned: Optional[PlannedWork]
     groups: tuple[EntityGroup, ...]
+
+
+@dataclass(frozen=True)
+class _CatalogPart:
+    """A catalog's part per entity type: the prefix of its ids, its names, and the heading of its tests' part."""
+
+    prefix: str
+    singular: str
+    plural: str
+    tests: str
+
+
+_CATALOG_PARTS = (
+    _CatalogPart("US-", "User Story", "User Stories", "User Story tests"),
+    _CatalogPart("FUNC-", "Functionality", "Functionalities", "Functionality tests"),
+)
 
 
 Presentation = Union[TechnicalProject, UiTestCatalog, CoverageMatrix]
@@ -518,7 +629,12 @@ def _id_order(entity: Union[EntityView, CoverageEntity, OverviewRow]) -> tuple[b
     """
     # Each number as its digits without leading zeros, compared by length, then digit by digit, as `int()` would
     # compare them: `int()` itself refuses a run of more than 4300 digits.
-    numbers = tuple((len(digits), digits) for digits in (run.lstrip("0") for run in _NUMBER_RE.findall(entity.id)))
+    return _number_order(entity.id)
+
+
+def _number_order(text: str) -> tuple[bool, tuple[tuple[int, str], ...]]:
+    """`_id_order` of an id as text: an entity's, or an acceptance criterion's."""
+    numbers = tuple((len(digits), digits) for digits in (run.lstrip("0") for run in _NUMBER_RE.findall(text)))
     return (not numbers, numbers)
 
 
@@ -692,36 +808,331 @@ def _not_loaded(warning: ContractWarning) -> NotLoaded:
 
 
 def _ui_test_catalog(document: UiTestCatalogResult, title: str) -> UiTestCatalog:
+    """
+    The entities that tests link, then the tests by feature file, as AbsaOSS/living-doc#155 agreed. Everything is
+    decided from the links the input holds, after a release view's drop: a file none of whose tests holds a link is in
+    no chapter, and only the inner view lists it.
+    """
+    view = document.document.view
+    title = title or DEFAULT_TITLES["ui-test-catalog"]
+    names = _file_names([catalog.feature_file for catalog in document.feature_files])
+    parts, unlinked = _catalog_files(document, view)
+    tests = _named_tests([catalog for _, part_files in parts for catalog in part_files])
+    entities = _linked_entities(tests)
+    headings = [title] + ([NOT_LINKED_HEADING] if unlinked else []) + [TEST_PREFIX + name for _, _, name in tests]
+    headings += [
+        heading for part in _CATALOG_PARTS for heading in ([part.plural, *entities[part]] if entities[part] else [])
+    ]
+    headings += [
+        heading
+        for part, part_files in parts
+        for heading in ([part.tests, *(names[catalog.feature_file] for catalog in part_files)] if part_files else [])
+    ]
+    anchors = _heading_anchors(headings)
+
+    views = {
+        _test_key(catalog, scenario): _scenario(scenario, name, view, anchors, names[catalog.feature_file])
+        for catalog, scenario, name in tests
+    }
+    entity_parts = tuple(
+        EntityPart(
+            heading=part.plural,
+            sentence=f"{_count(len(entities[part]), part.singular, part.plural)}: each tested criterion with its "
+            "state and the tests that cover it.",
+            entities=tuple(_tested_entity(entity_id, tests, views) for entity_id in entities[part]),
+        )
+        for part in _CATALOG_PARTS
+        if entities[part]
+    )
+    file_parts = tuple(
+        FilePart(
+            heading=part.tests,
+            sentence=f"{_count(len(part_files), 'feature file')}, "
+            f"{_count(sum(len(_file_scenarios(catalog)) for catalog in part_files), 'test')}, each with its metadata "
+            "and steps.",
+            files=tuple(_feature_file(catalog, names, anchors, views) for catalog in part_files),
+        )
+        for part, part_files in parts
+        if part_files
+    )
+    not_linked = _not_linked(unlinked, names)
     return UiTestCatalog(
-        title=title or DEFAULT_TITLES["ui-test-catalog"],
-        view=document.document.view,
-        feature_files=tuple(
-            FeatureFile(
-                name=catalog.feature_file,
-                user_stories=tuple(_linked_group(group) for group in catalog.linked_to_user_story),
-                functionalities=tuple(_linked_group(group) for group in catalog.linked_to_functionality),
-                unlinked=tuple(_scenario(scenario) for scenario in catalog.unlinked),
-            )
-            for catalog in document.feature_files
+        title=title,
+        view=view,
+        home=anchors.get(title),
+        contents=_contents(entity_parts, file_parts, not_linked, anchors),
+        entity_parts=entity_parts,
+        file_parts=file_parts,
+        not_linked=not_linked,
+    )
+
+
+def _not_linked(
+    unlinked: list[tuple[FeatureFileCatalog, list[CatalogScenario]]], names: dict[str, str]
+) -> Optional[NotLinked]:
+    """The inner view's files none of whose tests links a criterion, each with its test count; none without one."""
+    if not unlinked:
+        return None
+    return NotLinked(
+        heading=NOT_LINKED_HEADING,
+        sentence=f"{_count(len(unlinked), 'feature file')} whose tests link no criterion.",
+        files=tuple(
+            UnlinkedFile(name=names[catalog.feature_file], tests=_count(len(scenarios), "test"))
+            for catalog, scenarios in unlinked
         ),
     )
 
 
-def _linked_group(group: LinkedScenarios) -> LinkedGroup:
-    return LinkedGroup(entity_id=group.entity_id, scenarios=tuple(_scenario(scenario) for scenario in group.scenarios))
-
-
-def _scenario(scenario: Scenario) -> ScenarioView:
-    skipped = SKIP_TAG in scenario.tags
-    return ScenarioView(
-        id=scenario.scenario_id,
-        title=scenario.title,
-        badges=(SKIPPED_BADGE,) if skipped else (),
-        tags=tuple(scenario.tags),
-        covers_label=SKIPPED_COVERS_LABEL if skipped else COVERS_LABEL,
-        covers=tuple(Covered(ac_id=link.id, aspect=link.aspect) for link in scenario.acceptance_criteria),
-        source=_source_link(scenario.source_ref),
+def _catalog_files(
+    document: UiTestCatalogResult, view: str
+) -> tuple[list[tuple[_CatalogPart, list[FeatureFileCatalog]]], list[tuple[FeatureFileCatalog, list[CatalogScenario]]]]:
+    """The files with a chapter, by part and in file-name order; and, in the inner view, the files without one."""
+    files = [(catalog, _file_scenarios(catalog)) for catalog in document.feature_files]
+    parts = [
+        (
+            part,
+            sorted(
+                (catalog for catalog, scenarios in files if _holds_a_link(scenarios) and _file_part(scenarios) is part),
+                key=lambda catalog: _file_name_order(catalog.feature_file),
+            ),
+        )
+        for part in _CATALOG_PARTS
+    ]
+    unlinked = sorted(
+        ((catalog, scenarios) for catalog, scenarios in files if view == INNER and not _holds_a_link(scenarios)),
+        key=lambda item: _file_name_order(item[0].feature_file),
     )
+    return parts, unlinked
+
+
+def _linked_entities(
+    tests: list[tuple[FeatureFileCatalog, CatalogScenario, str]],
+) -> dict[_CatalogPart, list[str]]:
+    """Per part, the entities the tests' links name, in ascending id order."""
+    linked = {_entity_of(link.id) for _, scenario, _ in tests for link in scenario.acceptance_criteria}
+    return {
+        part: sorted((entity_id for entity_id in linked if entity_id.startswith(part.prefix)), key=_number_order)
+        for part in _CATALOG_PARTS
+    }
+
+
+def _named_tests(catalogs: list[FeatureFileCatalog]) -> list[tuple[FeatureFileCatalog, CatalogScenario, str]]:
+    """Every rendered test in document order, with its heading's name."""
+    tests = [(catalog, scenario) for catalog in catalogs for scenario in _file_scenarios(catalog)]
+    repeated = Counter(_title_key(scenario.title) for _, scenario in tests)
+    return [
+        (catalog, scenario, _test_name(scenario.title, catalog.feature_file, repeated)) for catalog, scenario in tests
+    ]
+
+
+def _file_scenarios(catalog: FeatureFileCatalog) -> list[CatalogScenario]:
+    """A file's tests once each, as its groups list them, in the order of their lines; a test without one after."""
+    groups = catalog.linked_to_user_story + catalog.linked_to_functionality
+    found = [scenario for group in groups for scenario in group.scenarios] + catalog.unlinked
+    once: dict[str, CatalogScenario] = {}
+    for scenario in found:
+        once.setdefault(scenario.scenario_id, scenario)
+    return sorted(once.values(), key=lambda scenario: (scenario.line is None, scenario.line or 0))
+
+
+def _test_key(catalog: FeatureFileCatalog, scenario: CatalogScenario) -> tuple[str, str]:
+    return (catalog.feature_file, scenario.scenario_id)
+
+
+def _holds_a_link(scenarios: list[CatalogScenario]) -> bool:
+    return any(scenario.acceptance_criteria for scenario in scenarios)
+
+
+def _file_part(scenarios: list[CatalogScenario]) -> _CatalogPart:
+    """A file's part: the User Story tests when a test links a User Story, else the Functionality tests."""
+    user_stories, functionalities = _CATALOG_PARTS
+    links = [link for scenario in scenarios for link in scenario.acceptance_criteria]
+    return user_stories if any(link.id.startswith(user_stories.prefix) for link in links) else functionalities
+
+
+def _file_name_order(feature_file: str) -> tuple[str, str]:
+    return (PurePosixPath(feature_file).name, feature_file)
+
+
+def _file_names(feature_files: list[str]) -> dict[str, str]:
+    """Each file's heading: its name, or its path when another file has the same name."""
+    shared = Counter(PurePosixPath(feature_file).name for feature_file in set(feature_files))
+    return {
+        feature_file: feature_file if shared[PurePosixPath(feature_file).name] > 1 else PurePosixPath(feature_file).name
+        for feature_file in feature_files
+    }
+
+
+def _title_key(title: str) -> str:
+    """What makes two test titles one heading: the same anchor, or the same text for a title without one."""
+    return anchor(TEST_PREFIX + title) or " ".join(title.split())
+
+
+def _test_name(title: str, feature_file: str, repeated: Counter[str]) -> str:
+    """A test's title, with its file's name when another rendered test has the same title."""
+    if repeated[_title_key(title)] > 1:
+        return f"{title} ({PurePosixPath(feature_file).stem})"
+    return title
+
+
+def _entity_of(ac_id: str) -> str:
+    """The entity an acceptance criterion belongs to: its id without the criterion's number."""
+    return ac_id.rsplit("-", 1)[0]
+
+
+def _heading_anchors(headings: list[str]) -> dict[str, str]:
+    """The headings a link can point at, with their anchors: a heading without one, or sharing it, is left out, as a
+    renderer would number the second heading's."""
+    found = {heading: anchor(heading) for heading in headings}
+    shared = Counter(anchor(heading) for heading in headings)
+    return {heading: place for heading, place in found.items() if place is not None and shared[place] == 1}
+
+
+def _count(number: int, singular: str, plural: Optional[str] = None) -> str:
+    return f"{number} {singular if number == 1 else plural or singular + 's'}"
+
+
+def _scenario(scenario: CatalogScenario, name: str, view: str, anchors: dict[str, str], file_name: str) -> ScenarioView:
+    skipped = SKIP_TAG in scenario.tags
+    badges = ((SKIPPED_BADGE,) if skipped else ()) + (
+        (NO_AC_BADGE,) if view == INNER and not scenario.acceptance_criteria else ()
+    )
+    return ScenarioView(
+        name=name,
+        anchor=anchors.get(TEST_PREFIX + name),
+        rule_background=(),
+        meta=ScenarioMeta(
+            badges=badges,
+            rule=scenario.rule,
+            covers_label=SKIPPED_COVERS_LABEL if skipped else COVERS_LABEL,
+            covers=tuple(
+                Covered(link=Link(text=link.id, anchor=anchors.get(_entity_of(link.id))), aspect=link.aspect)
+                for link in scenario.acceptance_criteria
+            ),
+            examples=_examples(scenario.steps),
+            tags=_shown_tags(scenario),
+            source=_scenario_source(scenario, file_name),
+        ),
+        steps=tuple(scenario.steps),
+    )
+
+
+def _shown_tags(scenario: CatalogScenario) -> tuple[str, ...]:
+    """A test's tags but its `@AC:` links, which `Covers` shows."""
+    return tuple(tag for tag in scenario.tags if not tag.startswith(AC_TAG_PREFIX))
+
+
+def _scenario_source(scenario: CatalogScenario, file_name: str) -> Link:
+    """The test's line in its file, `#L<line>` after the file's URL, when it has a line and the URL no fragment."""
+    url = scenario.source_ref.url
+    if scenario.line is not None and "#" not in url:
+        return _url_link(f"{file_name}#L{scenario.line}", f"{url}#L{scenario.line}")
+    return _url_link(file_name, url)
+
+
+def _examples(steps: list[str]) -> Optional[str]:
+    """An Outline's examples: the rows of each `Examples:` table but its header; none without an `Examples:` line."""
+    rows: Optional[int] = None
+    header = in_examples = False
+    for line in steps:
+        if _EXAMPLES_RE.match(line):
+            rows, header, in_examples = rows or 0, True, True
+        elif in_examples and _TABLE_ROW_RE.match(line):
+            rows = (rows or 0) + (0 if header else 1)
+            header = False
+        else:
+            in_examples = False
+    return None if rows is None else _count(rows, "example")
+
+
+def _feature_file(
+    catalog: FeatureFileCatalog,
+    names: dict[str, str],
+    anchors: dict[str, str],
+    views: dict[tuple[str, str], ScenarioView],
+) -> FeatureFile:
+    scenarios = _file_scenarios(catalog)
+    held = {_entity_of(link.id) for scenario in scenarios for link in scenario.acceptance_criteria}
+    entities = [
+        entity_id
+        for part in _CATALOG_PARTS
+        for entity_id in sorted((e for e in held if e.startswith(part.prefix)), key=_number_order)
+    ]
+    shown: list[ScenarioView] = []
+    rules: set[str] = set()
+    for scenario in scenarios:
+        chapter = views[_test_key(catalog, scenario)]
+        if scenario.rule is not None and scenario.rule not in rules:
+            rules.add(scenario.rule)
+            chapter = replace(chapter, rule_background=tuple(scenario.rule_background))
+        shown.append(chapter)
+    name = names[catalog.feature_file]
+    return FeatureFile(
+        link=Link(text=name, anchor=anchors.get(name)),
+        entities_label="Entity" if len(entities) == 1 else "Entities",
+        entities=tuple(Link(text=entity_id, anchor=anchors.get(entity_id)) for entity_id in entities),
+        source=_url_link(name, scenarios[0].source_ref.url.split("#", 1)[0]),
+        background=tuple(catalog.background),
+        scenarios=tuple(shown),
+    )
+
+
+def _tested_entity(
+    entity_id: str,
+    tests: list[tuple[FeatureFileCatalog, CatalogScenario, str]],
+    views: dict[tuple[str, str], ScenarioView],
+) -> TestedEntity:
+    """A row per criterion and test, by criterion, then in the tests' order."""
+    pairs: dict[tuple[str, tuple[str, str]], list[CatalogAcLink]] = {}
+    for catalog, scenario, _ in tests:
+        for link in scenario.acceptance_criteria:
+            if _entity_of(link.id) == entity_id:
+                pairs.setdefault((link.id, _test_key(catalog, scenario)), []).append(link)
+    rows = []
+    for (ac_id, key), links in sorted(pairs.items(), key=lambda pair: _number_order(pair[0][0])):
+        chapter = views[key]
+        rows.append(
+            CriterionRow(
+                ac_id=ac_id,
+                state=_badge(links[0].state) if links[0].state else None,
+                test=Link(text=chapter.name, anchor=chapter.anchor),
+                skipped=SKIPPED_BADGE if SKIPPED_BADGE in chapter.meta.badges else None,
+                aspects=tuple(_unique([link.aspect for link in links if link.aspect])),
+                tags=chapter.meta.tags,
+            )
+        )
+    tested = list(dict.fromkeys(key for _, key in pairs))
+    skipped = [key for key in tested if SKIPPED_BADGE in views[key].meta.badges]
+    summary = _count(len(tested), "test") + (f", {len(skipped)} skipped" if skipped else "") + "."
+    return TestedEntity(id=entity_id, summary=summary, rows=tuple(rows))
+
+
+def _contents(
+    entity_parts: tuple[EntityPart, ...],
+    file_parts: tuple[FilePart, ...],
+    not_linked: Optional[NotLinked],
+    anchors: dict[str, str],
+) -> tuple[ContentsEntry, ...]:
+    """The parts in their order, each with its chapters: every entity and every feature file."""
+    entries = [
+        ContentsEntry(
+            part=Link(text=part.heading, anchor=anchors.get(part.heading)),
+            chapters=tuple(Link(text=entity.id, anchor=anchors.get(entity.id)) for entity in part.entities),
+        )
+        for part in entity_parts
+    ]
+    entries += [
+        ContentsEntry(
+            part=Link(text=file_part.heading, anchor=anchors.get(file_part.heading)),
+            chapters=tuple(file.link for file in file_part.files),
+        )
+        for file_part in file_parts
+    ]
+    if not_linked is not None:
+        entries.append(
+            ContentsEntry(part=Link(text=not_linked.heading, anchor=anchors.get(not_linked.heading)), chapters=())
+        )
+    return tuple(entries)
 
 
 # ---------------------------------------------------------------------------
@@ -817,32 +1228,23 @@ def _technical_project_manifest(presentation: TechnicalProject) -> dict[str, Any
 
 
 def _ui_test_catalog_manifest(presentation: UiTestCatalog) -> dict[str, Any]:
-    entities: list[str] = []
-    scenarios: list[ScenarioView] = []
-    for feature_file in presentation.feature_files:
-        for group in feature_file.user_stories + feature_file.functionalities:
-            entities.append(group.entity_id)
-            scenarios.extend(group.scenarios)
-        scenarios.extend(feature_file.unlinked)
-    covered: dict[str, list[str]] = {}
-    for scenario in scenarios:
-        for cover in scenario.covers:
-            values = covered.setdefault(cover.ac_id, [])
-            if cover.aspect and cover.aspect not in values:
-                values.append(cover.aspect)
-    # A scenario listed in several groups is the same scenario: the manifest names it, and its badges, once.
-    by_id: dict[str, ScenarioView] = {}
-    for scenario in scenarios:
-        by_id.setdefault(scenario.id, scenario)
+    rows = [row for part in presentation.entity_parts for entity in part.entities for row in entity.rows]
+    tests = [scenario for part in presentation.file_parts for file in part.files for scenario in file.scenarios]
+    aspects: dict[str, list[str]] = {}
+    states: dict[str, str] = {}
+    for row in rows:
+        aspects.setdefault(row.ac_id, [])
+        aspects[row.ac_id] += [value for value in row.aspects if value not in aspects[row.ac_id]]
+        if row.state is not None:
+            states.setdefault(row.ac_id, row.state)
     return {
         "view": presentation.view,
-        "entities": _unique(entities),
-        "acceptance_criteria": list(covered),
-        "aspects": [{"ac_id": ac_id, "label": None, "values": values} for ac_id, values in covered.items() if values],
-        "badges": [
-            {"id": scenario.id, "badges": list(scenario.badges)} for scenario in by_id.values() if scenario.badges
-        ],
-        "scenarios": list(by_id),
+        "entities": [entity.id for part in presentation.entity_parts for entity in part.entities],
+        "acceptance_criteria": list(aspects),
+        "aspects": [{"ac_id": ac_id, "label": None, "values": values} for ac_id, values in aspects.items() if values],
+        "badges": [{"id": ac_id, "badges": [state]} for ac_id, state in states.items()]
+        + [{"id": test.name, "badges": list(test.meta.badges)} for test in tests if test.meta.badges],
+        "scenarios": [test.name for test in tests],
         "not_loaded": [],
     }
 

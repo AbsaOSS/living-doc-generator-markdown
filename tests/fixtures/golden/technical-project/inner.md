@@ -1,6 +1,6 @@
 # Payments service
 
-*View: inner · version 1.4.0 · 9 of 9 entities and 11 of 11 acceptance criteria selected*
+*version 1.4.0 · 9 of 9 entities and 11 of 11 acceptance criteria selected*
 
 ## Overview
 

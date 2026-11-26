@@ -1,7 +1,5 @@
 # Coverage matrix
 
-*View: inner*
-
 ## Summary
 
 | Coverage | Counted | Covered | Partially covered | Not covered |
