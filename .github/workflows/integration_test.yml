@@ -108,15 +108,15 @@ jobs:
           test "$THIRD" = "${{ github.workspace }}/output/third"
           rendered() {
             ls "$1"
-            test "$(ls "$1" | sort | tr '\n' ' ')" = "$2.md $2.run-report.json "
-            head -n 1 "$1/$2.md"
-            jq -e --arg type "$2" '.document_type == $type and .document == ($type + ".md") and .view == "inner"
-              and .render_manifest.view == "inner"' "$1/$2.run-report.json"
+            test "$(ls "$1" | sort | tr '\n' ' ')" = "$2-inner.md $2-inner.run-report.json "
+            head -n 1 "$1/$2-inner.md"
+            jq -e --arg type "$2" '.document_type == $type and .document == ($type + "-inner.md") and .view == "inner"
+              and .render_manifest.view == "inner"' "$1/$2-inner.run-report.json"
           }
           rendered "$FIRST" technical-project
           rendered "$SECOND" coverage-matrix
           rendered "$THIRD" ui-test-catalog
-          test "$(head -n 1 "$THIRD/ui-test-catalog.md")" = '# Checkout tests'
+          test "$(head -n 1 "$THIRD/ui-test-catalog-inner.md")" = '# Checkout tests'
           test "$(stat -c %Y "$VENV/pyvenv.cfg")" = "$(cat "${RUNNER_TEMP}/venv-cfg-mtime.txt")"
           replay() {
             out="${RUNNER_TEMP}/replay-$2"
@@ -126,7 +126,7 @@ jobs:
             grep -F "input read: \`$2-v" "$out.log"
             jq -e --arg type "$1" --arg input "$2" '.document_type == $type and (.input.schema_version | startswith($input + "-v"))
               and (.render_manifest | has("entities") and has("acceptance_criteria") and has("aspects") and has("badges"))' \
-              "$out/$1.run-report.json"
+              "$out/$1-inner.run-report.json"
             test "$(cat "$out.output")" = "output-path=$out"
           }
           replay technical-project generator-ready
@@ -175,8 +175,8 @@ jobs:
         run: |
           set -euo pipefail
           test "$OUTPUT_PATH" = "${{ github.workspace }}/output/generator-markdown"
-          test -s "$OUTPUT_PATH/technical-project.md"
-          test -s "$OUTPUT_PATH/technical-project.run-report.json"
+          test -s "$OUTPUT_PATH/technical-project-inner.md"
+          test -s "$OUTPUT_PATH/technical-project-inner.run-report.json"
           rm -r "$OUTPUT_PATH"
           "${RUNNER_TEMP}/living-doc-generator-markdown-venv/bin/python" \
             -c 'import sys; assert sys.version_info[:2] == (3, 12), sys.version'
@@ -198,7 +198,7 @@ jobs:
           OUTPUT_PATH: ${{ steps.on-311.outputs.output-path }}
         run: |
           set -euo pipefail
-          test -s "$OUTPUT_PATH/technical-project.md"
+          test -s "$OUTPUT_PATH/technical-project-inner.md"
           "${RUNNER_TEMP}/living-doc-generator-markdown-venv/bin/python" \
             -c 'import sys, living_doc_utilities; assert sys.version_info[:2] == (3, 11), sys.version'
           echo '::notice::switching the interpreter rebuilt the venv instead of reusing the 3.12 one.'

@@ -75,6 +75,10 @@ The rendering keeps three rules. Each is held by one module, and a test fails wh
 - A link inside the document points to an anchor the presentation derives from an entity id, `[a-z0-9_-]` only; an
   entity's heading holds its id alone, so every renderer derives the same anchor. An id outside ASCII, or one whose
   anchor would be empty or another id's, shows unlinked, as an id the document does not hold does.
+  - A UI test catalog also links its parts, its feature files and its tests by their headings' text, by GitHub's
+    rule, with the same exceptions: a heading outside ASCII, or sharing its anchor, is not linked.
+- A catalog's steps are the one authored text printed as written, in a `gherkin` code block whose fence is longer
+  than any backtick run in them; nothing inside a code block is read as Markdown or HTML.
 - After an intended change to the output, rewrite the snapshots with
   `UPDATE_GOLDEN=1 pytest tests/generator_markdown/test_golden.py`, and review their diff with the change.
 
@@ -85,6 +89,7 @@ export INPUT_DOCUMENT_TYPE=technical-project            # required: technical-pr
 export INPUT_SOURCE_PATH=generator-ready.json           # required: the document type's input file
 export INPUT_OUTPUT_PATH=./output/generator-markdown    # the default
 export INPUT_DOCUMENT_TITLE='Payments service'          # optional: the document's title
+export INPUT_RELEASE_VERSION=1.2.0                      # a release-view input: the release, which names the files
 export INPUT_VERBOSE_LOGGING=true                       # optional: DEBUG logs; default false
 python3 main.py
 ```
@@ -114,9 +119,8 @@ supported deployment target.
   [Local Integration Run](https://github.com/AbsaOSS/living-doc-toolkit/blob/master/DEVELOPER.md#local-integration-run)
   says where they land. The script never derives another component's paths; you configure all three files.
 - One `living-doc-toolkit` run writes one view. A release document needs its own `living-doc-toolkit` run with
-  `VIEW=release`, into its own `OUT_DIR`, and then this script over that run's files, into another `OUT_DIR` of its
-  own.
-  - `normalize-tests` takes no view, so the catalog is `inner` in both runs and renders the same document.
+  `VIEW=release`, and then this script over that run's files with `RELEASE_VERSION` set, into another `OUT_DIR`: a
+  run clears its `generator-markdown/` first.
 
 ### What You Prepare
 
@@ -153,6 +157,7 @@ command writes in the development venv ([Setup](#setup)); no sample is committed
 | `TECHNICAL_PROJECT_INPUT` | yes | `source-path` of `technical-project`: a `generator-ready` file, which `normalize-docs` writes |
 | `UI_TEST_CATALOG_INPUT` | yes | `source-path` of `ui-test-catalog`: a `ui-test-catalog` file, which `normalize-tests` writes |
 | `COVERAGE_MATRIX_INPUT` | yes | `source-path` of `coverage-matrix`: a `coverage-matrix` file, which `coverage-matrix` writes |
+| `RELEASE_VERSION` | no | `release-version` of every document type: required for release-view inputs, ignored for inner ones |
 | `OUT_DIR` | no | the output root, default `./output` (git-ignored) |
 | `PYTHON` | no | the interpreter the venv is built from |
 
@@ -181,14 +186,16 @@ A run, in order:
 3. **Prints what runs**: this repository's commit, the installed `living-doc-utilities` version, the Python version,
    the three inputs and the output directory. The commit is marked when tracked files differ from it.
 4. **Renders `technical-project`, `ui-test-catalog`, then `coverage-matrix`**, each as its own `main.py` run with only
-   `document-type`, `source-path` and `output-path`, into `$OUT_DIR/generator-markdown/`, having cleared that
-   directory first and nothing else. Each run is echoed before it runs.
+   `document-type`, `source-path`, `output-path` and `release-version`, into `$OUT_DIR/generator-markdown/`, having
+   cleared that directory first and nothing else. Each run is echoed before it runs.
    - Why: the output root may also hold the other components' local runs, `collector-gh/` and `toolkit/`, and the
      example's `samples/`.
    - A run that fails stops the script with one line naming the document type, after the generator's log. An input of
      another contract stops it with the generator's own line ([Errors](docs/action.md#errors)).
    - `main.py` gets a `GITHUB_OUTPUT` file under the venv, so its log does not report a missing one.
 5. **Checks and reports** each document, with `tools/local_integration.py`:
+   - It finds the document and its run report by the input's view and `RELEASE_VERSION`, as the generator names
+     them ([Files](docs/action.md#files)).
    - It re-reads the input with `read_artifact`, then prints the input's contract and producer, the document's view
      and title, the run time, the document's and the run report's sizes, the run report's counts, the length of each
      render manifest list, and the input's warnings by code: each code's count and its first ten occurrences.

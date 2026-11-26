@@ -1,30 +1,89 @@
-{#- A ui-test-catalog document: per `.feature` file, its scenarios by what they link to. No field depends on the view. -#}
+{#- A ui-test-catalog document: the contents; the User Stories and Functionalities that tests link, each tested
+    criterion with its tests; the tests by feature file; and, in the inner view, the files without a linked test. A
+    `---` stands between chapters, and a `Home` link ends each part's entities and each file. -#}
 # {{ document.title }}
+{% if document.contents %}
 
-*View: {{ document.view }}*
-{% for feature_file in document.feature_files %}
-
-## {{ feature_file.name }}
-{% if feature_file.user_stories %}
-
-### Linked to a User Story
-{% for group in feature_file.user_stories %}
-{% include "ui-test-catalog/linked-group.md.j2" %}
+{% for entry in document.contents %}
+- {{ entry.part | link }}
+{% for chapter in entry.chapters %}
+{{ 1 | indent }}- {{ chapter | link }}
+{% endfor %}
 {% endfor %}
 {% endif %}
-{% if feature_file.functionalities %}
+{% for part in document.entity_parts %}
 
-### Linked to a Functionality
-{% for group in feature_file.functionalities %}
-{% include "ui-test-catalog/linked-group.md.j2" %}
+---
+
+## {{ part.heading }}
+
+{{ part.sentence }}
+{% for entity in part.entities %}
+
+---
+
+### {{ entity.id }}
+
+{{ entity.summary }}
+
+| AC | AC state | Test | Test state | Aspect | Tags |
+|---|---|---|---|---|---|
+{% for row in entity.rows %}
+| {{ row.ac_id }} | {% if row.state %}{{ row.state | code }}{% else %}—{% endif %} | {{ row.test | link }} | {% if row.skipped %}{{ row.skipped | code }}{% else %}—{% endif %} | {% if row.aspects %}{{ row.aspects | join(", ") }}{% else %}—{% endif %} | {% if row.tags %}{{ row.tags | join(", ") }}{% else %}—{% endif %} |
 {% endfor %}
+{% endfor %}
+{% if document.home %}
+
+{{ "Home" | anchored(document.home) }}
 {% endif %}
-{% if feature_file.unlinked %}
-
-### Unlinked
-
-{% for scenario in feature_file.unlinked %}
-{% include "ui-test-catalog/scenario.md.j2" %}
 {% endfor %}
+{% for part in document.file_parts %}
+
+---
+
+## {{ part.heading }}
+
+{{ part.sentence }}
+
+{% for file in part.files %}
+- {{ file.link | link }}
+{% endfor %}
+{% for file in part.files %}
+
+---
+
+### {{ file.link.text }}
+
+- **{{ file.entities_label }}:** {{ file.entities | links }}
+- **Source:** {{ file.source | link }}
+{% if file.background %}
+
+**Background**
+
+{{ file.background | gherkin }}
+{% endif %}
+{% for scenario in file.scenarios %}
+{% include "ui-test-catalog/test.md.j2" %}
+{% endfor %}
+{% if document.home %}
+
+{{ "Home" | anchored(document.home) }}
 {% endif %}
 {% endfor %}
+{% endfor %}
+{% if document.not_linked %}
+
+---
+
+## {{ document.not_linked.heading }}
+
+{{ document.not_linked.sentence }}
+
+{% for file in document.not_linked.files %}
+- {{ file.name }}: {{ file.tests }}
+{% endfor %}
+{% if document.home %}
+
+{{ "Home" | anchored(document.home) }}
+{% endif %}
+{% endif %}

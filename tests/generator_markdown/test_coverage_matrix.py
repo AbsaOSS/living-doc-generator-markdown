@@ -283,3 +283,13 @@ def test_the_title_is_the_document_title_input_or_the_default(title, heading):
 
     # Assert
     assert markdown.startswith(heading)
+
+
+@pytest.mark.parametrize("view", VIEWS)
+def test_the_title_is_followed_by_the_summary_and_no_view(view):
+    # Act
+    markdown = rendered(sample(CONTRACT, view))
+
+    # Assert: the file name carries the view.
+    assert markdown.startswith("# Coverage matrix\n\n## Summary\n")
+    assert "View:" not in markdown

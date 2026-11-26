@@ -55,10 +55,11 @@ One step renders one document type from the one `living-doc-toolkit` output it r
   - The release view leaves out the fields the
     [rendering rules](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts/rendering.md#fields-by-view)
     mark inner-only.
-- A technical project and a coverage matrix list the entities of each type in ascending order of their ids' numbers
+  - The document prints no view: its file name carries it ([Files](#files)).
+- Every document lists the entities of each type in ascending order of their ids' numbers
   - The numbers compare one by one: `US-2` before `US-10`, `FEAT-2024-3` before `FEAT-2024-10`.
   - An id without a number comes after the numbered ones; ids of equal numbers keep the input's order.
-  - Acceptance criteria keep their authored order, and a UI test catalog keeps the input's order.
+  - A technical project's acceptance criteria keep their authored order.
 - A coverage matrix opens with the matrix's totals, then one table per entity type
   - A row per entity: its ID linked to its chapter, its title, state, coverage and counts.
   - The figures are the input's own summaries, never recomputed.
@@ -72,6 +73,22 @@ One step renders one document type from the one `living-doc-toolkit` output it r
   - A planned criterion without a version shows `backlog`; a deprecated one shows its removal target after its state.
   - A criterion's aspects, keyword values, rationale, and its own preconditions and not-in-scope items follow the
     table, under the criterion's ID.
+- A UI test catalog opens with its contents, then shows the entities its tests link, then the tests by feature file
+  - The layout is the one agreed on [AbsaOSS/living-doc#155](https://github.com/AbsaOSS/living-doc/issues/155#issuecomment-7158222252).
+  - *User Stories*, then *Functionalities*: a chapter per entity a test links, with a table of a row per criterion
+    and test: the criterion's ID and state, the test linked to its chapter, the test's state, aspects and tags.
+  - *User Story tests*, then *Functionality tests*: a chapter per feature file, in file-name order, naming the
+    entities its tests link, its source and its `Background:`, then a chapter per test in line order.
+  - A test's chapter shows its status, rule, the criteria it covers, its examples, its tags but the `@AC:` ones, its
+    line at the source, then its steps as written in a `gherkin` block; a rule's `Background:` shows once, before
+    its first test.
+  - A file goes under *User Story tests* when a test links a User Story, otherwise under *Functionality tests*.
+  - A test title that repeats among the tests gets its file's name, so every heading and link is unique.
+- A UI test catalog decides from the links its input holds, after the release view dropped the `planned` and
+  `in_review` ones
+  - A feature file none of whose tests links a criterion is in no chapter; only the inner view lists it, with its
+    test count, under *Not linked to an entity*.
+  - Only the inner view marks a test that links no criterion, with the badge `NO AC`.
 - A UI test catalog marks a scenario tagged `@skip` with the badge `SKIPPED`
   - Its criteria show under *Skipped, not counted* in place of *Covers*: the coverage matrix counts none of them.
   - Only the scenario's own tag marks it, exactly `@skip`; its tags still list it, in both views.
@@ -105,6 +122,7 @@ Every input `action.yml` declares, in its order; a test keeps this table equal t
 | `source-path` | yes | — | Path to the document type's input file, the one `living-doc-toolkit` output it reads |
 | `output-path` | no | `./output/generator-markdown` | The directory the run writes its two files into ([Files](#files)); an empty value is the default |
 | `document-title` | no | `''` | The document's title; when empty, the document type's default ([Document types](#document-types)) |
+| `release-version` | no | `''` | The release a release-view input describes, as `X.Y.Z` or `vX.Y.Z`, not validated; it names the files ([Files](#files)). Required for a release-view input, ignored for an inner-view one |
 | `verbose-logging` | no | `false` | `true`, in any case, logs at DEBUG; a re-run with debug logging (`RUNNER_DEBUG=1`) does the same without it |
 
 ## Outputs
@@ -118,14 +136,18 @@ Every input `action.yml` declares, in its order; a test keeps this table equal t
 
 ## Files
 
-Each run writes two files into `output-path`, named by its document type, and leaves every other file there as it is:
+Each run writes two files into `output-path`, named by its document type and its view, and leaves every other file
+there as it is:
 
 <!-- over limit: one row per file; the run report's row lists what it holds -->
 | File | Holds |
 |---|---|
-| `<document-type>.md` | the document, e.g. `technical-project.md` |
-| `<document-type>.run-report.json` | the input's contract and producer, its record counts (equal to its `metadata.stats.cardinality`), and the render manifest: the entity ids, acceptance criteria, aspects, badges and scenarios the document shows, and what was not loaded |
+| `<document-type>-<view>.md` | the document, e.g. `technical-project-inner.md` or `technical-project-release-v1.2.0.md` |
+| `<document-type>-<view>.run-report.json` | the input's contract and producer, its record counts (equal to its `metadata.stats.cardinality`), and the render manifest: the entity ids, acceptance criteria, aspects, badges and scenarios the document shows, and what was not loaded |
 
+- `<view>` is `inner` for an inner-view input, and `release-vX.Y.Z` for a release-view one, from `release-version`
+  - `1.2.0` and `v1.2.0` both give `release-v1.2.0`; the value is not validated.
+  - An inner run and a release run can write into one directory without overwriting each other.
 - The directory is created when it is missing
 
 ## Errors
@@ -146,11 +168,13 @@ pass, in this order. Every failure but a failed install is one line and exit cod
 | source | a collector output (`doc-source`, `doc-entities`, `ui-tests`) | one line naming the `living-doc-toolkit` command that writes the document type's input |
 | source | another document type's file | one line naming the `document-type` that renders it |
 | source | an input written by another `living-doc-utilities` version, declaring a contract version the pinned one does not ship | `INVALID_CONTRACT_ID`, with the hint to align the pins |
+| input | a release-view input without `release-version` | one line naming `release-version` |
 | render | a template reads a key its model lacks | `TEMPLATE_KEY_MISSING`, never an empty section |
 | output | `output-path` cannot be written | one line naming `output-path` |
 | output | the `output-path` output cannot be set | one line naming it |
 
-- The inputs are checked in `action.yml` order, `document-type` first
+- The inputs are checked in `action.yml` order, `document-type` first; `release-version` once the input's view is
+  read
 - The codes, and the fixed order a consumer checks an input in, are `living-doc-utilities`':
   [codes](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts/errors.md#codes),
   [R5](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts.md#rules)

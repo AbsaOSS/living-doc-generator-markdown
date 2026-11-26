@@ -24,9 +24,12 @@ from pathlib import Path
 import pytest
 from living_doc_utilities.contracts import coverage_matrix, doc_source, generator_ready, ui_test_catalog
 from living_doc_utilities.contracts.compat import installed_utilities_version
+from living_doc_utilities.contracts.io import write_artifact
+from living_doc_utilities.contracts.testing import full_sample
 
 from generator_markdown import renderer
 from main import run
+from tests.samples import release
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
 LOG_LINE = re.compile(r"\d{4}-\d\d-\d\d \d\d:\d\d:\d\d - [A-Z]+ - ")
@@ -113,12 +116,15 @@ def test_a_run_with_a_valid_input_writes_the_document_and_its_run_report_and_set
     # Assert
     output = valid_inputs / "out" / "docs"
     assert _errors(caplog) == []
-    assert sorted(path.name for path in output.iterdir()) == [f"{document_type}.md", f"{document_type}.run-report.json"]
-    assert (output / f"{document_type}.md").read_text(encoding="utf-8").startswith("# ")
-    report = json.loads((output / f"{document_type}.run-report.json").read_text(encoding="utf-8"))
+    assert sorted(path.name for path in output.iterdir()) == [
+        f"{document_type}-inner.md",
+        f"{document_type}-inner.run-report.json",
+    ]
+    assert (output / f"{document_type}-inner.md").read_text(encoding="utf-8").startswith("# ")
+    report = json.loads((output / f"{document_type}-inner.run-report.json").read_text(encoding="utf-8"))
     assert (report["document_type"], report["document"], report["view"]) == (
         document_type,
-        f"{document_type}.md",
+        f"{document_type}-inner.md",
         "inner",
     )
     assert (valid_inputs / "github-output").read_text(encoding="utf-8") == f"output-path={os.fspath(output)}\n"
@@ -134,7 +140,7 @@ def test_a_run_outside_github_actions_writes_the_document_and_sets_no_output(val
 
     # Assert
     assert _errors(caplog) == []
-    assert (valid_inputs / "output" / "generator-markdown" / "technical-project.md").is_file()
+    assert (valid_inputs / "output" / "generator-markdown" / "technical-project-inner.md").is_file()
     assert "Liv-Doc generator for Markdown - no `GITHUB_OUTPUT`: the `output-path` output is not set." in caplog.text
 
 
@@ -146,8 +152,75 @@ def test_the_document_title_input_titles_the_document(valid_inputs, monkeypatch)
     run()
 
     # Assert
-    document = valid_inputs / "output" / "generator-markdown" / "technical-project.md"
+    document = valid_inputs / "output" / "generator-markdown" / "technical-project-inner.md"
     assert document.read_text(encoding="utf-8").startswith("# Our payments\n")
+
+
+@pytest.mark.parametrize("release_version", ["1.2.0", "v1.2.0"])
+@pytest.mark.parametrize(
+    ("document_type", "contract_id"),
+    [
+        ("technical-project", generator_ready.CONTRACT_ID),
+        ("ui-test-catalog", ui_test_catalog.CONTRACT_ID),
+        ("coverage-matrix", coverage_matrix.CONTRACT_ID),
+    ],
+)
+def test_a_release_view_run_names_both_files_by_the_release_version(
+    valid_inputs, monkeypatch, caplog, document_type, contract_id, release_version
+):
+    # Arrange
+    write_artifact(release(full_sample(contract_id)), valid_inputs / "release.json")
+    monkeypatch.setenv("INPUT_DOCUMENT_TYPE", document_type)
+    monkeypatch.setenv("INPUT_SOURCE_PATH", "release.json")
+    monkeypatch.setenv("INPUT_RELEASE_VERSION", release_version)
+
+    # Act
+    run()
+
+    # Assert
+    output = valid_inputs / "output" / "generator-markdown"
+    assert _errors(caplog) == []
+    assert sorted(path.name for path in output.iterdir()) == [
+        f"{document_type}-release-v1.2.0.md",
+        f"{document_type}-release-v1.2.0.run-report.json",
+    ]
+    report = json.loads((output / f"{document_type}-release-v1.2.0.run-report.json").read_text(encoding="utf-8"))
+    assert (report["document"], report["view"]) == (f"{document_type}-release-v1.2.0.md", "release")
+
+
+def test_a_release_view_run_without_the_release_version_fails_with_one_line_and_writes_nothing(
+    valid_inputs, monkeypatch, caplog
+):
+    # Arrange
+    write_artifact(release(full_sample(generator_ready.CONTRACT_ID)), valid_inputs / "release.json")
+    monkeypatch.setenv("INPUT_SOURCE_PATH", "release.json")
+
+    # Act
+    with pytest.raises(SystemExit) as exit_info:
+        run()
+
+    # Assert
+    assert exit_info.value.code == 1
+    assert _errors(caplog) == [
+        "Input `release-version` is required for a release-view input: the release the document describes, "
+        "as `X.Y.Z` or `vX.Y.Z`."
+    ]
+    assert not (valid_inputs / "output").exists()
+
+
+def test_an_inner_view_run_ignores_the_release_version(valid_inputs, monkeypatch):
+    # Arrange
+    monkeypatch.setenv("INPUT_RELEASE_VERSION", "1.2.0")
+
+    # Act
+    run()
+
+    # Assert
+    output = valid_inputs / "output" / "generator-markdown"
+    assert sorted(path.name for path in output.iterdir()) == [
+        "technical-project-inner.md",
+        "technical-project-inner.run-report.json",
+    ]
 
 
 def test_a_template_missing_a_key_fails_the_run_with_one_line_and_writes_nothing(valid_inputs, monkeypatch, caplog):
@@ -296,7 +369,10 @@ def test_the_entry_point_run_as_the_action_runs_it_exits_0_and_sets_the_resolved
     assert all(LOG_LINE.match(line) for line in result.stdout.splitlines()), result.stdout
     assert " - ERROR - " not in result.stdout
     output = run_dir / "docs" / "generated"
-    assert sorted(path.name for path in output.iterdir()) == [f"{document_type}.md", f"{document_type}.run-report.json"]
+    assert sorted(path.name for path in output.iterdir()) == [
+        f"{document_type}-inner.md",
+        f"{document_type}-inner.run-report.json",
+    ]
     assert (tmp_path / "github-output").read_text(encoding="utf-8") == f"output-path={output}\n"
 
 

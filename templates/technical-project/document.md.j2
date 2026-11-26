@@ -3,7 +3,7 @@
 # {{ document.title }}
 
 {% set selection = document.selection %}
-*View: {{ document.view }} · version {{ document.version }} · {{ selection.included_entities }} of {{ selection.total_entities }} entities and {{ selection.included_criteria }} of {{ selection.total_criteria }} acceptance criteria selected*
+*version {{ document.version }} · {{ selection.included_entities }} of {{ selection.total_entities }} entities and {{ selection.included_criteria }} of {{ selection.total_criteria }} acceptance criteria selected*
 
 ## Overview
 {% for table in document.overview %}

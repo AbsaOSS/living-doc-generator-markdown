@@ -44,6 +44,7 @@ from living_doc_utilities.contracts.testing import full_sample
 
 from generator_markdown.source_reader import CONTRACT_NAMES
 from main import run as render_document
+from tests.samples import release
 from tools.local_integration import CONTRACTS, FIRST_OCCURRENCES, NotRendered, main, report, warnings_by_code
 
 REPO_ROOT = Path(__file__).resolve().parents[1]
@@ -181,7 +182,7 @@ def _rendered(tmp_path, write_sample, monkeypatch) -> dict[str, tuple[str, str]]
 
 
 def _run_report_of(output: str, document_type: str) -> Path:
-    return Path(output) / f"{document_type}.run-report.json"
+    return Path(output) / f"{document_type}-inner.run-report.json"
 
 
 def test_the_report_describes_the_document_its_input_and_its_run_report(rendered):
@@ -189,7 +190,7 @@ def test_the_report_describes_the_document_its_input_and_its_run_report(rendered
     source_path, output = rendered["technical-project"]
     source = read_artifact(source_path, "generator-ready")
     producer = source.metadata.producer
-    document = Path(output) / "technical-project.md"
+    document = Path(output) / "technical-project-inner.md"
     run_report_path = _run_report_of(output, "technical-project")
     run_report = json.loads(run_report_path.read_text(encoding="utf-8"))
     manifest = run_report["render_manifest"]
@@ -199,7 +200,7 @@ def test_the_report_describes_the_document_its_input_and_its_run_report(rendered
 
     # Assert: what was rendered from what, the view and title it was rendered with, the time and the sizes.
     assert lines[:7] == [
-        f"technical-project: {output}{os.sep}technical-project.md",
+        f"technical-project: {output}{os.sep}technical-project-inner.md",
         "  input: generator-ready-v1.0.0, valid (read_artifact)",
         f"  producer: {producer.name} {producer.version}, living-doc-utilities {producer.utilities_version}",
         "  view: inner",
@@ -228,6 +229,23 @@ def test_the_report_describes_the_document_its_input_and_its_run_report(rendered
     # Assert: the input's warnings, by code.
     assert lines[manifest_at + 7 :] == warnings_by_code(source.warnings)
     assert lines[manifest_at + 7] == "  warnings: 3"
+
+
+@pytest.mark.parametrize("release_version", ["1.2.0", "v1.2.0"])
+def test_the_report_reads_a_release_view_documents_files_by_the_release_version(tmp_path, monkeypatch, release_version):
+    # Arrange
+    source = tmp_path / "generator-ready.json"
+    write_artifact(release(full_sample(generator_ready.CONTRACT_ID)), source)
+    output = tmp_path / "out"
+    monkeypatch.setenv("INPUT_RELEASE_VERSION", release_version)
+    _render(monkeypatch, "technical-project", source, output)
+
+    # Act
+    lines = report("technical-project", os.fspath(source), os.fspath(output), 5, release_version)
+
+    # Assert
+    assert lines[0] == f"technical-project: {output}{os.sep}technical-project-release-v1.2.0.md"
+    assert lines[3] == "  view: release"
 
 
 def test_the_coverage_matrix_manifest_lists_every_counted_entity_and_criterion(rendered):
@@ -319,7 +337,7 @@ def _main_fails(capsys, document_type: str, source_path: str, output: str) -> st
 def test_a_missing_or_empty_document_or_run_report_fails_with_one_line(rendered, capsys, which, content, says):
     # Arrange
     source_path, output = rendered["technical-project"]
-    path = Path(output) / f"technical-project.{which}"
+    path = Path(output) / f"technical-project-inner.{which}"
     if content is None:
         path.unlink()
     else:
@@ -895,7 +913,7 @@ def test_a_run_renders_checks_and_reports_the_three_documents_from_the_example(s
     # Assert: each document type ran through `main.py` with the three inputs the action passes, and no title.
     runs = [line for line in result.stderr.splitlines() if line.startswith("+ env ")]
     assert [sorted(set(re.findall(r"\bINPUT_[A-Z_]+(?==)", run))) for run in runs] == [
-        ["INPUT_DOCUMENT_TYPE", "INPUT_OUTPUT_PATH", "INPUT_SOURCE_PATH"]
+        ["INPUT_DOCUMENT_TYPE", "INPUT_OUTPUT_PATH", "INPUT_RELEASE_VERSION", "INPUT_SOURCE_PATH"]
     ] * 3
     assert [re.search(r"INPUT_DOCUMENT_TYPE=(\S+)", run).group(1) for run in runs] == list(INPUTS)
     assert all(run.endswith(" -E main.py") for run in runs)
@@ -903,10 +921,12 @@ def test_a_run_renders_checks_and_reports_the_three_documents_from_the_example(s
     assert "GITHUB_OUTPUT`" not in result.stderr
     # Assert: each document and run report written, checked and reported.
     assert _files(seeded / "output" / "generator-markdown") == sorted(
-        name for document_type in INPUTS for name in (f"{document_type}.md", f"{document_type}.run-report.json")
+        name
+        for document_type in INPUTS
+        for name in (f"{document_type}-inner.md", f"{document_type}-inner.run-report.json")
     )
     for document_type in INPUTS:
-        assert f"{document_type}: {output}/{document_type}.md" in result.stdout
+        assert f"{document_type}: {output}/{document_type}-inner.md" in result.stdout
     assert result.stdout.count("  view: inner") == 3
     assert "    not_loaded: 3" in result.stdout
     assert (
@@ -925,7 +945,7 @@ def test_an_input_of_another_contract_stops_the_run_with_the_generators_line(see
     (seeded / ".env.local").write_text(
         f"{config}TECHNICAL_PROJECT_INPUT={collector_output.as_posix()}\n", encoding="utf-8", newline="\n"
     )
-    stale = seeded / "output" / "generator-markdown" / "coverage-matrix.md"
+    stale = seeded / "output" / "generator-markdown" / "coverage-matrix-inner.md"
     stale.parent.mkdir(parents=True)
     stale.write_text("# Coverage matrix\n", encoding="utf-8")
 
@@ -989,12 +1009,14 @@ def test_a_token_in_the_shell_or_the_config_reaches_no_output_no_child_and_no_fi
     written = [path for path in (seeded / "output" / "generator-markdown").rglob("*") if path.is_file()]
     assert len(written) == 6
     assert [path.name for path in written if TOKEN in path.read_text(encoding="utf-8")] == []
-    # Assert: what the script starts inherits neither the token nor any action input from the shell.
+    # Assert: what the script starts inherits neither the token nor any action input from the shell; it gets the
+    # inputs the script sets, `RELEASE_VERSION` from `.env.local` included.
     child_environment = (tmp_path / "child-environment.txt").read_text(encoding="utf-8", errors="replace")
     assert "PATH=" in child_environment
     assert TOKEN not in child_environment
     assert {line.split("=")[0] for line in child_environment.splitlines() if line.startswith("INPUT_")} == {
         "INPUT_DOCUMENT_TYPE",
         "INPUT_OUTPUT_PATH",
+        "INPUT_RELEASE_VERSION",
         "INPUT_SOURCE_PATH",
     }

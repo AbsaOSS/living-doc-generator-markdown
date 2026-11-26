@@ -30,9 +30,14 @@ DOCUMENT_TYPE = "document-type"
 SOURCE_PATH = "source-path"
 OUTPUT_PATH = "output-path"
 DOCUMENT_TITLE = "document-title"
+RELEASE_VERSION = "release-version"
 
 # The same default `action.yml` gives `output-path`, for a run that passes the input empty.
 DEFAULT_OUTPUT_PATH = "./output/generator-markdown"
+
+# The file names' view part: `inner`, or the release's for a release-view input.
+INNER_VIEW_NAME = "inner"
+RELEASE_VIEW = "release"
 
 
 class DocumentType(str, Enum):
@@ -52,12 +57,14 @@ class ActionInputError(Exception):
 
 @dataclass(frozen=True)
 class ActionInputs:
-    """The validated action inputs; `output_path` is resolved to an absolute path."""
+    """The validated action inputs; `output_path` is resolved to an absolute path, and `release_version` is a plain
+    string, not validated."""
 
     document_type: DocumentType
     source_path: str
     output_path: str
     document_title: str
+    release_version: str = ""
 
     @classmethod
     def from_environment(cls) -> "ActionInputs":
@@ -66,7 +73,8 @@ class ActionInputs:
 
         @return: The validated inputs.
         @raise ActionInputError: `document-type` or `source-path` is missing, `document-type` is unknown, or
-            `output-path` holds a line break.
+            `output-path` holds a line break. `release-version` is checked by `view_name`, once the input's view is
+            read.
         """
         raw_document_type = get_action_input(DOCUMENT_TYPE).strip()
         if not raw_document_type:
@@ -96,4 +104,23 @@ class ActionInputs:
             source_path=source_path,
             output_path=os.path.abspath(output_path),
             document_title=get_action_input(DOCUMENT_TITLE).strip(),
+            release_version=get_action_input(RELEASE_VERSION).strip(),
         )
+
+    def view_name(self, view: str) -> str:
+        """
+        The view as both file names carry it: `inner`, or `release-v<version>` for a release-view input, its version
+        `release-version` without a leading `v`. An inner-view input ignores `release-version`.
+
+        @param view: The input's `document.view`.
+        @return: The file names' view part.
+        @raise ActionInputError: A release-view input and no `release-version`.
+        """
+        if view != RELEASE_VIEW:
+            return INNER_VIEW_NAME
+        if not self.release_version:
+            raise ActionInputError(
+                f"Input `{RELEASE_VERSION}` is required for a release-view input: the release the document describes, "
+                "as `X.Y.Z` or `vX.Y.Z`."
+            )
+        return f"{RELEASE_VIEW}-v{self.release_version.removeprefix('v')}"

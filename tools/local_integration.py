@@ -55,6 +55,14 @@ MANIFEST_LISTS = ("entities", "acceptance_criteria", "aspects", "badges", "scena
 MANIFEST_MATCHES_COUNTS = {"technical-project", "coverage-matrix"}
 
 
+def view_name(view: str, release_version: str) -> str:
+    """
+    The view as the generator's file names carry it: `inner`, or `release-v<version>` without the version's leading
+    `v`. The generator's own rule (`ActionInputs.view_name`), which this helper cannot import.
+    """
+    return "inner" if view != "release" else f"release-v{release_version.removeprefix('v')}"
+
+
 class NotRendered(Exception):
     """The document or its run report is missing or empty, or the run report disagrees with the input."""
 
@@ -162,7 +170,9 @@ def _check(document_type: str, source: Any, run_report: dict[str, Any]) -> None:
                 )
 
 
-def report(document_type: str, input_path: str, output_dir: str, elapsed_ms: int) -> list[str]:
+def report(
+    document_type: str, input_path: str, output_dir: str, elapsed_ms: int, release_version: str = ""
+) -> list[str]:
     """
     Re-read one document's input with `read_artifact`, check the document and its run report against it, and
     describe them.
@@ -171,6 +181,7 @@ def report(document_type: str, input_path: str, output_dir: str, elapsed_ms: int
     @param input_path: The input file the document was rendered from.
     @param output_dir: The directory the generator wrote the document and its run report into.
     @param elapsed_ms: How long the generator's run took, in milliseconds.
+    @param release_version: The `release-version` the run passed, which names a release-view input's files.
     @return: The report lines.
     @raise ContractError: When the input fails its document type's contract.
     @raise NotRendered: When the document or its run report is missing or empty, or the run report disagrees with the
@@ -178,9 +189,10 @@ def report(document_type: str, input_path: str, output_dir: str, elapsed_ms: int
     @raise OSError: When a file cannot be read.
     @raise ValueError: When the input is not JSON.
     """
-    source = read_artifact(input_path, CONTRACTS[document_type])
-    document_path = os.path.join(output_dir, f"{document_type}.md")
-    run_report_path = os.path.join(output_dir, f"{document_type}.run-report.json")
+    source: Any = read_artifact(input_path, CONTRACTS[document_type])
+    name = f"{document_type}-{view_name(source.document.view, release_version)}"
+    document_path = os.path.join(output_dir, f"{name}.md")
+    run_report_path = os.path.join(output_dir, f"{name}.run-report.json")
     document_size = _written(document_path, "document")
     run_report_size = _written(run_report_path, "run report")
     run_report = _run_report(run_report_path)
@@ -217,10 +229,11 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     document.add_argument("input")
     document.add_argument("output_dir")
     document.add_argument("elapsed_ms", type=int)
+    document.add_argument("--release-version", default="", help="the `release-version` the run passed")
     args = parser.parse_args(argv)
 
     try:
-        lines = report(args.document_type, args.input, args.output_dir, args.elapsed_ms)
+        lines = report(args.document_type, args.input, args.output_dir, args.elapsed_ms, args.release_version)
     except NotRendered as e:
         failure = str(e)
     except ContractError as e:

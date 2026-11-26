@@ -15,7 +15,7 @@
 #
 
 """
-The generator's one write: the document and its run report into `output-path`, named by document type.
+The generator's one write: the document and its run report into `output-path`, named by document type and view.
 """
 
 import json
@@ -29,29 +29,35 @@ class OutputError(Exception):
     """`output-path` cannot be written; the message is the one line the run fails with."""
 
 
-def document_file_name(document_type: DocumentType) -> str:
-    """The document's file name: `<document-type>.md`."""
-    return f"{document_type.value}.md"
+def document_file_name(document_type: DocumentType, view_name: str) -> str:
+    """The document's file name: `<document-type>-<view name>.md`, the view name `ActionInputs.view_name`'s."""
+    return f"{document_type.value}-{view_name}.md"
 
 
-def run_report_file_name(document_type: DocumentType) -> str:
-    """The run report's file name: `<document-type>.run-report.json`."""
-    return f"{document_type.value}.run-report.json"
+def run_report_file_name(document_type: DocumentType, view_name: str) -> str:
+    """The run report's file name: `<document-type>-<view name>.run-report.json`."""
+    return f"{document_type.value}-{view_name}.run-report.json"
 
 
-def write_output(output_path: str, document_type: DocumentType, markdown: str, report: dict[str, Any]) -> list[Path]:
+def write_output(
+    output_path: str, document_type: DocumentType, view_name: str, markdown: str, report: dict[str, Any]
+) -> list[Path]:
     """
     Write the document and its run report into `output_path`, creating the directory when missing.
 
     @param output_path: The resolved `output-path` directory.
     @param document_type: The rendered document type, which names both files.
+    @param view_name: The view as both file names carry it: `inner` or `release-vX.Y.Z`.
     @param markdown: The document.
     @param report: The run report.
     @return: The document's path, then the run report's.
     @raise OutputError: A file or the directory cannot be written, or the document holds text UTF-8 cannot encode.
     """
     directory = Path(output_path)
-    written = [directory / document_file_name(document_type), directory / run_report_file_name(document_type)]
+    written = [
+        directory / document_file_name(document_type, view_name),
+        directory / run_report_file_name(document_type, view_name),
+    ]
     try:
         # Encoded before any file is opened: an input can hold a lone surrogate, which UTF-8 cannot encode.
         payloads = [markdown.encode("utf-8"), (json.dumps(report, indent=2, ensure_ascii=False) + "\n").encode("utf-8")]

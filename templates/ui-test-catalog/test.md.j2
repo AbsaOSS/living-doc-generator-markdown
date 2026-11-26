@@ -1,0 +1,30 @@
+{#- One test's chapter: its rule's background before the rule's first test, then its metadata and its steps. -#}
+{% if scenario.rule_background %}
+
+**Rule background:** {{ scenario.meta.rule }}
+
+{{ scenario.rule_background | gherkin }}
+{% endif %}
+
+#### Test: {{ scenario.name }}
+
+{% if scenario.meta.badges %}
+- **Status:** {% for badge in scenario.meta.badges %}{{ badge | code }}{% if not loop.last %} {% endif %}{% endfor +%}
+{% endif %}
+{% if scenario.meta.rule %}
+- **Rule:** {{ scenario.meta.rule }}
+{% endif %}
+{% if scenario.meta.covers %}
+- **{{ scenario.meta.covers_label }}:** {% for covered in scenario.meta.covers %}{{ covered.link | link }}{% if covered.aspect %} ({{ covered.aspect }}){% endif %}{% if not loop.last %}, {% endif %}{% endfor +%}
+{% endif %}
+{% if scenario.meta.examples %}
+- **Outline:** {{ scenario.meta.examples }}
+{% endif %}
+{% if scenario.meta.tags %}
+- **Tags:** {{ scenario.meta.tags | join(", ") }}
+{% endif %}
+- **Source:** {{ scenario.meta.source | link }}
+{% if scenario.steps %}
+
+{{ scenario.steps | gherkin }}
+{% endif %}

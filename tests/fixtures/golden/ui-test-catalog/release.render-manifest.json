@@ -2,7 +2,7 @@
   "view": "release",
   "entities": [
     "US-001",
-    "FUNC-001"
+    "US-002"
   ],
   "acceptance_criteria": [
     "US-001-01",
@@ -26,10 +26,29 @@
       ]
     }
   ],
-  "badges": [],
+  "badges": [
+    {
+      "id": "US-001-01",
+      "badges": [
+        "ACTIVE"
+      ]
+    },
+    {
+      "id": "US-001-04",
+      "badges": [
+        "ACTIVE"
+      ]
+    },
+    {
+      "id": "US-002-01",
+      "badges": [
+        "DEPRECATED"
+      ]
+    }
+  ],
   "scenarios": [
-    "SCN-001",
-    "SCN-002"
+    "Customer completes checkout as a guest",
+    "Customer completes checkout with a saved card"
   ],
   "not_loaded": []
 }

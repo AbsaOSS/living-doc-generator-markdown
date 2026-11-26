@@ -134,14 +134,17 @@ def test_the_technical_project_manifest_records_each_view():
     assert release["not_loaded"] == []
 
 
-def test_the_document_and_its_run_report_are_written_into_the_output_directory(tmp_path):
+@pytest.mark.parametrize("view_name", ["inner", "release-v1.2.0"])
+def test_the_document_and_its_run_report_are_written_into_the_output_directory_named_by_the_view(tmp_path, view_name):
     # Act
-    written = write_output(str(tmp_path / "out" / "docs"), DocumentType.COVERAGE_MATRIX, "# Doc\n", {"view": "inner"})
+    written = write_output(
+        str(tmp_path / "out" / "docs"), DocumentType.COVERAGE_MATRIX, view_name, "# Doc\n", {"view": "inner"}
+    )
 
     # Assert
     assert written == [
-        tmp_path / "out" / "docs" / "coverage-matrix.md",
-        tmp_path / "out" / "docs" / "coverage-matrix.run-report.json",
+        tmp_path / "out" / "docs" / f"coverage-matrix-{view_name}.md",
+        tmp_path / "out" / "docs" / f"coverage-matrix-{view_name}.run-report.json",
     ]
     assert written[0].read_bytes() == b"# Doc\n"
     assert json.loads(written[1].read_text(encoding="utf-8")) == {"view": "inner"}
@@ -154,7 +157,7 @@ def test_a_document_utf8_cannot_encode_fails_with_one_line_and_writes_nothing(tm
 
     # Act
     with pytest.raises(OutputError) as error:
-        write_output(str(output), DocumentType.TECHNICAL_PROJECT, "# Truncated \ud83d\n", {})
+        write_output(str(output), DocumentType.TECHNICAL_PROJECT, "inner", "# Truncated \ud83d\n", {})
 
     # Assert
     assert str(error.value) == (
@@ -171,7 +174,7 @@ def test_an_output_path_that_cannot_be_a_directory_fails_with_one_line_naming_th
 
     # Act
     with pytest.raises(OutputError) as error:
-        write_output(str(blocker / "docs"), DocumentType.TECHNICAL_PROJECT, "# Doc\n", {})
+        write_output(str(blocker / "docs"), DocumentType.TECHNICAL_PROJECT, "inner", "# Doc\n", {})
 
     # Assert
     message = str(error.value)

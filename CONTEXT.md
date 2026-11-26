@@ -14,7 +14,7 @@ document with a run report. It is the generate stage of the living-doc pipeline.
 ## Tech stack
 
 - Python `>=3.10`; CI runs 3.10 to 3.14.
-- `living-doc-utilities==0.8.1`: the contract models, `read_artifact`, the codes, `setup_logging`, `safe_href`.
+- `living-doc-utilities==0.9.0rc2`: the contract models, `read_artifact`, the codes, `setup_logging`, `safe_href`.
 - `Jinja2==3.1.6` with `StrictUndefined`; one template folder per document type under `templates/`.
 - pytest + pytest-cov, ruff, Black, Pylint, mypy; `PyYAML` and `markdown-it-py` for the tests only.
 
@@ -77,7 +77,9 @@ flowchart LR
 - Every failure `main.py` reports is one line and exit code 1, naming the input where there is one, with `!r` on a
   value that may hold a line break; the tests assert the exact text.
 - The presentation module imports only the contract models and returns frozen dataclasses; a template only renders.
-- Every link passes `safe_href`, and every printed value is escaped (`DEVELOPER.md` § Design rules).
+- Every link passes `safe_href`, and every printed value is escaped, but a catalog's steps, printed as written in a
+  `gherkin` block that no backtick run closes (`generator_markdown/renderer.py::_gherkin`,
+  `DEVELOPER.md` § Design rules).
 - Log through `setup_logging` with lazy `%` formatting; tests use `pytest`, never `unittest`.
 
 ## Key decisions
@@ -122,12 +124,19 @@ What realises each fact of [`docs/action.md`](docs/action.md), the action's refe
 - `document-title` first, then a technical project's own `document.title` → `generator_markdown/presentation.py::_technical_project`
 - The view is the input's `document.view` → `generator_markdown/presentation.py::_technical_project`, `generator_markdown/presentation.py::_ui_test_catalog` and `generator_markdown/presentation.py::_coverage_matrix`
 - The fields each view shows → utilities
-- The entities of each type in ascending order of the numbers in their ids → `generator_markdown/presentation.py::_groups` and `generator_markdown/presentation.py::_id_order`
+- No document prints its view → `tests/generator_markdown/test_technical_project.py::test_the_header_names_the_version_and_the_selection_and_no_view`, `tests/generator_markdown/test_coverage_matrix.py::test_the_title_is_followed_by_the_summary_and_no_view` and `tests/generator_markdown/test_ui_test_catalog.py::test_a_separator_stands_only_between_chapters_and_no_document_names_its_view`
+- The entities of each type in ascending order of the numbers in their ids → `generator_markdown/presentation.py::_groups`, `generator_markdown/presentation.py::_id_order` and `generator_markdown/presentation.py::_number_order`
 - A coverage matrix's totals, then one table per entity type, each ID linked to its chapter → `tests/generator_markdown/test_coverage_matrix.py::test_the_summary_opens_with_the_totals_then_one_table_per_entity_type_in_id_order` and `generator_markdown/presentation.py::_coverage_matrix`
 - A technical project's overview, one table per entity type in place of a contents list → `generator_markdown/presentation.py::_overview` and `tests/generator_markdown/test_technical_project.py::test_the_document_opens_with_one_overview_table_per_entity_type_in_place_of_a_contents_list`
 - A User Story's or Functionality's criteria by state, only `active` and `deprecated` in the release view; a Feature's Functionalities → `generator_markdown/presentation.py::_overview_row` and `generator_markdown/presentation.py::_STATE_COLUMNS`
 - Each entity's criteria as one table, `backlog` and the removal target in their cells → `generator_markdown/presentation.py::_criterion`
 - A criterion's list fields below the table, under its ID → `tests/generator_markdown/test_technical_project.py::test_a_criterions_list_fields_show_in_a_note_below_its_entitys_table`
+- A catalog's contents, entities, then tests by feature file, as agreed on living-doc#155 → `generator_markdown/presentation.py::_ui_test_catalog` and `tests/generator_markdown/test_ui_test_catalog.py::test_the_catalog_has_the_layout_agreed_on_living_doc_155`
+- An entity's table, a row per criterion and test → `generator_markdown/presentation.py::_tested_entity`
+- A feature file's chapter, in file-name order, and its part → `generator_markdown/presentation.py::_feature_file`, `generator_markdown/presentation.py::_file_name_order` and `generator_markdown/presentation.py::_file_part`
+- A test's chapter: status, rule, covers, examples, tags but `@AC:`, source line, steps; a rule's background once → `generator_markdown/presentation.py::_scenario`, `generator_markdown/presentation.py::_examples`, `generator_markdown/presentation.py::_shown_tags`, `generator_markdown/presentation.py::_scenario_source` and `generator_markdown/presentation.py::_feature_file`
+- A repeated test title gets its file's name → `generator_markdown/presentation.py::_test_name`
+- The catalog decides from the links it holds; *Not linked to an entity* and `NO AC` in the inner view only → `generator_markdown/presentation.py::_ui_test_catalog`, `generator_markdown/presentation.py::NO_AC_BADGE` and `tests/generator_markdown/test_ui_test_catalog.py::test_the_release_view_decides_from_the_links_the_drop_left`
 - A catalog's `@skip` scenario: the badge `SKIPPED`, its criteria under *Skipped, not counted*, the exact tag only → `generator_markdown/presentation.py::_scenario`, `generator_markdown/presentation.py::SKIP_TAG` and `tests/generator_markdown/test_ui_test_catalog.py::test_only_the_exact_skip_tag_marks_a_scenario_skipped`
 - The document-type table equals the code → `tests/docs/test_option_lists.py::test_the_document_type_table_equals_the_code`
 - The input table equals `action.yml` → `tests/docs/test_option_lists.py::test_the_input_table_equals_action_yml`
@@ -137,12 +146,14 @@ What realises each fact of [`docs/action.md`](docs/action.md), the action's refe
 - `output-path`, resolved to an absolute path → `generator_markdown/action_inputs.py::ActionInputs.from_environment`
 - The `output-path` output, set once both files are written → `main.py::run`
 - The two file names → `generator_markdown/output_writer.py::document_file_name` and `generator_markdown/output_writer.py::run_report_file_name`
+- `<view>`: `inner`, or `release-vX.Y.Z` from `release-version`, not validated → `generator_markdown/action_inputs.py::ActionInputs.view_name`
 - The directory is created when missing; no other file is touched → `generator_markdown/output_writer.py::write_output`
 - What the run report holds → `generator_markdown/run_report.py::run_report`
 - Its counts equal the input's `metadata.stats.cardinality` → `tests/generator_markdown/test_run_report.py::test_the_counts_come_from_the_input_model_and_equal_its_cardinality`
 - A failed `pip install` fails the step with pip's own output → `action.yml::requirements.txt`
 - The venv step's three lines → `tests/test_action_yml.py::test_a_python_below_3_10_fails_with_one_error_line_before_creating_a_venv`, `tests/test_action_yml.py::test_a_failed_venv_create_fails_with_one_error_line` and `tests/test_action_yml.py::test_requirements_missing_from_the_venv_fail_the_import_check_with_one_error_line`
 - The input lines, in `action.yml` order → `generator_markdown/action_inputs.py::ActionInputs.from_environment`
+- A release-view input without `release-version`, checked once the input is read → `generator_markdown/action_inputs.py::ActionInputs.view_name` and `main.py::run`
 - The `source-path` lines, a collector output's and another document type's included → `generator_markdown/source_reader.py::read_source` and `generator_markdown/source_reader.py::_contract_error_line`
 - `INVALID_CONTRACT_ID` with the pin hint → `tests/generator_markdown/test_source_reader.py::test_a_version_of_the_expected_contract_the_installed_utilities_lacks_is_rejected_with_the_pin_hint`
 - `TEMPLATE_KEY_MISSING`, never an empty section → `generator_markdown/renderer.py::render`

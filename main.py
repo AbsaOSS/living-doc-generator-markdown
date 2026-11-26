@@ -42,8 +42,9 @@ def run() -> None:
     Run the Living Documentation (Liv-Doc) Generator for Markdown: validate the inputs, read the input file, render
     the document and write it with its run report.
 
-    @return: None; the run ends with exit code 1 on an invalid input or input file, a template missing a key, or an
-        output it cannot write, and with exit code 0 once the document and its run report are written.
+    @return: None; the run ends with exit code 1 on an invalid input or input file, a release-view input without
+        `release-version`, a template missing a key, or an output it cannot write, and with exit code 0 once the
+        document and its run report are written.
     """
     setup_logging()
     logger.info("Liv-Doc generator for Markdown - starting.")
@@ -68,6 +69,11 @@ def run() -> None:
         sys.exit(1)
 
     logger.info("Liv-Doc generator for Markdown - input read: `%s`.", document.schema_version)
+    try:
+        view_name = inputs.view_name(document.document.view)
+    except ActionInputError as error:
+        logger.error("%s", error)
+        sys.exit(1)
     producer = document.metadata.producer
     # `%r`: the file's own values stay on one log line.
     logger.debug(
@@ -84,9 +90,11 @@ def run() -> None:
         logger.error("%s", error)
         sys.exit(1)
 
-    report = run_report(inputs.document_type, document, presentation, document_file_name(inputs.document_type))
+    report = run_report(
+        inputs.document_type, document, presentation, document_file_name(inputs.document_type, view_name)
+    )
     try:
-        written = write_output(inputs.output_path, inputs.document_type, markdown, report)
+        written = write_output(inputs.output_path, inputs.document_type, view_name, markdown, report)
     except OutputError as error:
         logger.error("%s", error)
         sys.exit(1)
