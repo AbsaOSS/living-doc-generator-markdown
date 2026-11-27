@@ -14,7 +14,7 @@ document with a run report. It is the generate stage of the living-doc pipeline.
 ## Tech stack
 
 - Python `>=3.10`; CI runs 3.10 to 3.14.
-- `living-doc-utilities==0.9.0rc2`: the contract models, `read_artifact`, the codes, `setup_logging`, `safe_href`.
+- `living-doc-utilities==0.9.0`: the contract models, `read_artifact`, the codes, `setup_logging`, `safe_href`.
 - `Jinja2==3.1.6` with `StrictUndefined`; one template folder per document type under `templates/`.
 - pytest + pytest-cov, ruff, Black, Pylint, mypy; `PyYAML` and `markdown-it-py` for the tests only.
 
@@ -72,7 +72,7 @@ flowchart LR
   Markdown under `.github/`, `.claude/`, `.local_context/` and `tests/fixtures/` are not pages.
 - A page states facts without `path::symbol`, except `DEVELOPER.md`; the `CONTEXT.md` beside the code maps them in
   `## Code map` (`tests/docs/pages.py::CODE_MAPS`). A changed fact updates both.
-- Every `uses:` of this action on a page names one release, `@v0.1.0`.
+- Every `uses:` of this action on a page names one release, `@v0.2.0`.
 - There is no `SPEC.md`: the design rules are `DEVELOPER.md` § Design rules.
 - Every failure `main.py` reports is one line and exit code 1, naming the input where there is one, with `!r` on a
   value that may hold a line break; the tests assert the exact text.

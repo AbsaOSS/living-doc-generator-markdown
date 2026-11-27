@@ -96,15 +96,15 @@ One step renders one document type from the one `living-doc-toolkit` output it r
 The three document types, one step each, over the files one `living-doc-toolkit` run wrote:
 
 ```yaml
-- uses: AbsaOSS/living-doc-generator-markdown@v0.1.0
+- uses: AbsaOSS/living-doc-generator-markdown@v0.2.0
   with:
     document-type: technical-project
     source-path: output/generator-ready.json
-- uses: AbsaOSS/living-doc-generator-markdown@v0.1.0
+- uses: AbsaOSS/living-doc-generator-markdown@v0.2.0
   with:
     document-type: ui-test-catalog
     source-path: output/ui-test-catalog.json
-- uses: AbsaOSS/living-doc-generator-markdown@v0.1.0
+- uses: AbsaOSS/living-doc-generator-markdown@v0.2.0
   with:
     document-type: coverage-matrix
     source-path: output/coverage-matrix.json

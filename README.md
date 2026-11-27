@@ -24,7 +24,7 @@ run report. It is the generate step of a living-documentation pipeline, the fina
 - By view: a document shows what the view its input declares, `inner` or `release`, keeps → [Document types](docs/action.md#document-types)
 - Two files per run, the document and its run report, into `output-path` → [Files](docs/action.md#files)
 - Plain Markdown, meant to be committed next to the code it documents and rendered by whatever already renders the repository's Markdown (GitHub, a wiki, a generic static site generator), so no publishing infrastructure is needed
-- Contract artifacts only: it reads its input through the `living-doc-utilities` contracts (`==0.9.0rc2`) → [Contracts](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts.md)
+- Contract artifacts only: it reads its input through the `living-doc-utilities` contracts (`==0.9.0`) → [Contracts](https://github.com/AbsaOSS/living-doc-utilities/blob/master/docs/contracts.md)
 - Pipeline-ready: collect → normalize → generate, this action being the generate step → [Architecture](https://github.com/AbsaOSS/living-doc/blob/master/docs/introduction/architecture.md), [Choose a generator](https://github.com/AbsaOSS/living-doc/blob/master/docs/guides/build-a-pipeline.md#choose-a-generator)
 - GitHub Actions first: a step in a workflow is the supported way to run it; a local run is a development and operator-check aid, not a second deployment target → [Debug run](DEVELOPER.md#debug-run), [Local Integration Run](DEVELOPER.md#local-integration-run)
 - AI-free: collect → normalize → generate is deterministic tooling, with no LLM call anywhere in that path → [AI-free Principle](CONTRIBUTING.md#ai-free-principle)
@@ -40,7 +40,7 @@ One step that renders a technical project, after `actions/setup-python`
 ```yaml
 - name: Generate Markdown
   id: markdown
-  uses: AbsaOSS/living-doc-generator-markdown@v0.1.0
+  uses: AbsaOSS/living-doc-generator-markdown@v0.2.0
   with:
     document-type: technical-project
     source-path: generator-ready.json
